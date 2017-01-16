@@ -114,7 +114,7 @@ new_fluid_dart_audio_driver(fluid_settings_t* settings, fluid_synth_t* synth)
      */
     if( m_hmodMDM == NULLHANDLE )
     {
-        rc = DosLoadModule(szFailedName, sizeof(szFailedName), "MDM.DLL", &m_hmodMDM);
+        rc = DosLoadModule(szFailedName, sizeof(szFailedName), "MDM", &m_hmodMDM);
 
         if (rc != 0 ) {
             FLUID_LOG(FLUID_ERR, "Cannot load MDM.DLL for DART due to %s", szFailedName);
