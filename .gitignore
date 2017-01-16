@@ -1,0 +1,17 @@
+*~
+*.a
+*.d
+*.dll
+*.exe
+*.la
+*.lo
+*.o
+*.obj
+*.res
+.deps
+.dirstamp
+.libs
+autom4te.cache
+config.log
+config.status
+stamp-h1
