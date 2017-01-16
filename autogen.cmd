@@ -1,0 +1,3 @@
+extproc sh
+
+./autogen.sh
