@@ -14,27 +14,28 @@
  *  
  * You should have received a copy of the GNU Library General Public
  * License along with this library; if not, write to the Free
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- * 02111-1307, USA
+ * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA
  */
 
 #ifndef _FLUIDSYNTH_SEQBIND_H
 #define _FLUIDSYNTH_SEQBIND_H
 
-#include "fluidsynth/seq.h"
+#include "seq.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-  /** registers fluidsynth as a client of the given sequencer.
-      The fluidsynth is registered with the name "fluidsynth".
-	
-      \returns the fluidsynth destID.
-  */
+/**
+ * @file seqbind.h
+ * @brief Functions for binding sequencer objects to other subsystems.
+ */
+
 FLUIDSYNTH_API 
 short fluid_sequencer_register_fluidsynth(fluid_sequencer_t* seq, fluid_synth_t* synth);
-
+FLUIDSYNTH_API int
+fluid_sequencer_add_midi_event_to_buffer(void* data, fluid_midi_event_t* event);
 
 
 #ifdef __cplusplus

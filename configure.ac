@@ -7,8 +7,8 @@ AC_INIT(src/fluidsynth.c)
 dnl *** NOTE *** Don't forget to update library version below also
 
 FLUIDSYNTH_VERSION_MAJOR=1
-FLUIDSYNTH_VERSION_MINOR=0
-FLUIDSYNTH_VERSION_MICRO=9
+FLUIDSYNTH_VERSION_MINOR=1
+FLUIDSYNTH_VERSION_MICRO=5
 FLUIDSYNTH_VERSION=$FLUIDSYNTH_VERSION_MAJOR.$FLUIDSYNTH_VERSION_MINOR.$FLUIDSYNTH_VERSION_MICRO
 
 AC_SUBST(FLUIDSYNTH_VERSION_MAJOR)
@@ -28,9 +28,9 @@ dnl if any interfaces added/removed/changed: lt_current++ and lt_revision=0
 dnl if any interfaces have been added: lt_age++
 dnl if any interfaces have been removed/changed (compatibility broken): lt_age=0
 
-m4_define([lt_current], [2])
-m4_define([lt_revision], [3])
-m4_define([lt_age], [1])
+m4_define([lt_current], [6])
+m4_define([lt_revision], [1])
+m4_define([lt_age], [5])
 
 LT_VERSION_INFO="lt_current:lt_revision:lt_age"
 AC_SUBST(LT_VERSION_INFO)
@@ -38,7 +38,7 @@ AC_SUBST(LT_VERSION_INFO)
 AM_CONFIG_HEADER(src/config.h)
 AC_CONFIG_MACRO_DIR([m4])
 
-CFLAGS="$CFLAGS -Wall"
+CFLAGS="$CFLAGS"
 
 dnl Check for programs
 AC_PROG_CC
@@ -71,7 +71,7 @@ mingw*)
   mingw32_support="yes"
   CFLAGS="$CFLAGS -mms-bitfields"
   AC_DEFINE(MINGW32, 1, [Define if using the MinGW32 environment])
-  LIBFLUID_LIBS="-ldsound -lwinmm"
+  LIBFLUID_LIBS="-ldsound -lwinmm -lws2_32"
   LIBFLUID_CPPFLAGS="-DFLUIDSYNTH_DLL_EXPORTS"
   LIBFLUID_LDFLAGS="-no-undefined"
   FLUID_CPPFLAGS="-DFLUIDSYNTH_NOT_A_DLL"
@@ -80,12 +80,19 @@ os2*)
   LDFLAGS="$LDFLAGS -Zbin-files"
   LIBFLUID_LDFLAGS="-no-undefined"
   ;;
+solaris*) 
+  LDFLAGS="$LDFLAGS -lnsl -lsocket" 
+  ;; 
 esac
 
 AC_SUBST(LIBFLUID_LIBS)
 AC_SUBST(LIBFLUID_CPPFLAGS)
 AC_SUBST(LIBFLUID_LDFLAGS)
 AC_SUBST(FLUID_CPPFLAGS)
+
+dnl Check for GNU LD
+AC_LIB_PROG_LD_GNU
+AM_CONDITIONAL(GNU_LD_SUPPORT, test "x$with_gnu_ld" = "xyes")
 
 AM_CONDITIONAL(MINGW32_SUPPORT, test "$mingw32_support" == "yes")
 
@@ -137,13 +144,68 @@ AC_ARG_ENABLE(debug, AS_HELP_STRING([--enable-debug],
 	[enable debugging (default=no)]),
   ENABLE_DEBUG=$enableval)
 
-if test "$ENABLE_DEBUG" = "yes"; then
-  CFLAGS="${CFLAGS} ${FCCFLAGS} -g -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused"
-  AC_DEFINE(DEBUG, 1, [Define to activate debugging message]) 
-else
-  CFLAGS="${CFLAGS} ${FCCFLAGS} -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused -Winline"
-  AC_DEFINE(DEBUG, 0, [Define to activate debugging message])
+# Those are only valid for GCC
+if test "$GCC" = yes; then
+  if test "$ENABLE_DEBUG" = "yes"; then
+    CFLAGS="${CFLAGS} ${FCCFLAGS} -g -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Wno-unused-parameter -Wno-cast-qual"
+    AC_DEFINE(DEBUG, 1, [Define to activate debugging message]) 
+  else
+    CFLAGS="${CFLAGS} ${FCCFLAGS} -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wcast-align -Wstrict-prototypes -Winline -Wno-unused-parameter -Wno-cast-qual"
+    AC_DEFINE(DEBUG, 0, [Define to activate debugging message])
+  fi
 fi
+
+dnl Assert that glib and gthread are available
+PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.6.5 gthread-2.0 >= 2.6.5)
+AC_SUBST(GLIB_CFLAGS)
+AC_SUBST(GLIB_LIBS)
+
+dnl - Check for DBUS support
+
+AC_ARG_ENABLE(dbus-support, AS_HELP_STRING([--disable-dbus-support],
+      [Do not compile with support for D-Bus (default=auto)]),
+  enable_dbus_support=$enableval, enable_dbus_support="yes")
+
+if test "x$enable_dbus_support" != "xno"; then
+  PKG_CHECK_MODULES(DBUS, dbus-1 >= 1.0.0, DBUS_SUPPORT=1, DBUS_SUPPORT=0)
+else
+  DBUS_SUPPORT=0
+fi
+
+if test "$DBUS_SUPPORT" = "1"; then
+  AC_DEFINE(DBUS_SUPPORT, 1, [Define to enable D-Bus support])
+fi
+AM_CONDITIONAL(DBUS_SUPPORT, test "$DBUS_SUPPORT" = "1")
+AC_SUBST(DBUS_CFLAGS)
+AC_SUBST(DBUS_LIBS)
+
+
+dnl Check for libsndfile support
+
+AC_ARG_ENABLE(libsndfile-support, AS_HELP_STRING([--disable-libsndfile-support],
+      [Do not compile libsndfile support (default=auto)]),
+  enable_libsndfile_support=$enableval, enable_libsndfile_support="yes")
+
+if test "x$enable_libsndfile_support" != "xno"; then
+  PKG_CHECK_MODULES(LIBSNDFILE, sndfile >= 1.0.0, LIBSNDFILE_SUPPORT=1, LIBSNDFILE_SUPPORT=0)
+else
+  LIBSNDFILE_SUPPORT=0
+fi
+
+if test "$LIBSNDFILE_SUPPORT" = "1"; then
+  PKG_CHECK_MODULES(LIBSNDFILE_VORBIS, sndfile >= 1.0.18, LIBSNDFILE_HASVORBIS=1, LIBSNDFILE_HASVORBIS=0)
+  AC_DEFINE(LIBSNDFILE_SUPPORT, 1, [Define to enable libsndfile support])
+  if test "$LIBSNDFILE_HASVORBIS" = "1"; then
+    AC_DEFINE(LIBSNDFILE_HASVORBIS, 1, [libsndfile has ogg vorbis support])
+  fi
+else
+  LIBSNDFILE_HASVORBIS=0
+fi
+
+AM_CONDITIONAL(LIBSNDFILE_SUPPORT, test "$LIBSNDFILE_SUPPORT" = "1")
+AM_CONDITIONAL(LIBSNDFILE_HASVORBIS, test "$LIBSNDFILE_HASVORBIS" = "1")
+AC_SUBST(LIBSNDFILE_CFLAGS)
+AC_SUBST(LIBSNDFILE_LIBS)
 
 
 dnl 
@@ -152,16 +214,17 @@ dnl
 
 
 dnl - Sound file support check
-dnl AUFILE_SUPPORT=0
-dnl 
-dnl AC_ARG_ENABLE(aufile-support,
-dnl   [  --disable-aufile-support Do not compile support for sound file output],
-dnl   enable_aufile_support=no)
-dnl 
-dnl if test "x${enable_aufile_support}" != "xno"; then
-dnl   AUFILE_SUPPORT=1
-dnl   AC_DEFINE(AUFILE_SUPPORT, 1, [Define to activate sound output to files])
-dnl fi
+AUFILE_SUPPORT=0
+
+AC_ARG_ENABLE(aufile-support,
+  [  --disable-aufile-support Do not compile support for sound file output],
+  enable_aufile_support=no)
+
+if test "x${enable_aufile_support}" != "xno"; then
+  AUFILE_SUPPORT=1
+  AC_DEFINE(AUFILE_SUPPORT, 1, [Define to activate sound output to files])
+fi
+
 
 dnl - Check for PulseAudio support
 
@@ -292,7 +355,7 @@ AC_SUBST(COREMIDI_LIBS)
 dnl
 dnl - Check support for DART
 dnl
-AC_CHECK_HEADER(os2me.h, DART_FOUND="yes", DART_FOUND="no")
+AC_CHECK_HEADER(os2me.h, DART_FOUND="yes", DART_FOUND="no", -)
 AC_ARG_ENABLE(dart, AS_HELP_STRING([--disable-dart],
     [disable DART support (default=auto)]),
   enable_dart=$enableval, enable_dart="yes")
@@ -393,12 +456,7 @@ AM_CONDITIONAL(LADCCA_SUPPORT, test "$LADCCA_FOUND" = "yes")
 
 AC_OUTPUT([
 	Makefile
-	macbuild/Makefile
-	sf2/Makefile
-	winbuild/Makefile
-	winbuild/fluidsynth/Makefile
-	winbuild/fluidsynth_dll/Makefile
-	winbuild/fluidsynth_lib/Makefile
+    cmake_admin/Makefile
 	src/Makefile
 	src/config_win32.h
 	doc/Makefile
@@ -409,8 +467,27 @@ AC_OUTPUT([
 	fluidsynth.spec])
 
 echo
-echo "**************************************************************"
+echo "***************************************************************"
+echo "The autotools build system is deprecated and might be removed  "
+echo "in a future version. Please use the CMake build system instead."
+echo "***************************************************************"
 echo "Summary:"
+
+if test "${LIBSNDFILE_SUPPORT}" = "1"; then
+  if test "${LIBSNDFILE_HASVORBIS}" = "1"; then
+    echo "libsndfile:            yes (with ogg vorbis support)"
+  else
+    echo "libsndfile:            yes"
+  fi
+else 
+  echo "libsndfile:            no (raw audio file rendering only)"
+fi
+
+if test "${DBUS_SUPPORT}" = "1"; then
+  echo "D-Bus:                 yes"
+else 
+  echo "D-Bus:                 no"
+fi
 
 if test "${PULSE_SUPPORT}" = "1"; then
   echo "PulseAudio:            yes"
@@ -467,13 +544,13 @@ else
 fi
 
 if test "${LASH_FOUND}" = "yes"; then
-  echo "LASH support:          yes"
+  echo "LASH support:          yes (NOTE: GPL library)"
 else
   echo "LASH support:          no"
 fi
 
 if test "${LADCCA_FOUND}" = "yes"; then
-  echo "LADCCA support:        yes"
+  echo "LADCCA support:        yes (NOTE: GPL library)"
 else
   echo "LADCCA support:        no"
 fi
@@ -484,14 +561,14 @@ else
   echo "OS/2 DART support:     no"
 fi
 
-dnl if test "${AUFILE_SUPPORT}" = "1"; then
-dnl   echo "Sound file:            yes"
-dnl else
-dnl   echo "Sound file:            no"
-dnl fi
+if test "${AUFILE_SUPPORT}" = "1"; then
+  echo "Audio to file driver:  yes"
+else
+  echo "Audio to file driver:  no"
+fi
 
 if test "$WITH_READLINE" = "1"; then
-  echo "Readline:              yes"
+  echo "Readline:              yes (NOTE: GPL library)"
 else
   echo "Readline:              no"
 fi
@@ -520,5 +597,5 @@ else
   echo "Check FPE (debug):     no"
 fi
 
-echo "**************************************************************"
+echo "***************************************************************"
 echo

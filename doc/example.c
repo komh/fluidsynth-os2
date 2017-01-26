@@ -43,14 +43,11 @@ int main(int argc, char** argv)
      as the driver is created. */
   adriver = new_fluid_audio_driver(settings, synth);
 
-  /* Load a SoundFont*/
-  sfont_id = fluid_synth_sfload(synth, "example.sf2", 0);
+  /* Load a SoundFont and reset presets (so that new instruments
+   * get used from the SoundFont) */
+  sfont_id = fluid_synth_sfload(synth, "example.sf2", 1);
 
-  /* Select bank 0 and preset 0 in the SoundFont we just loaded on
-     channel 0 */
-  fluid_synth_program_select(synth, 0, sfont_id, 0, 0); 
-
-  /* Initialze the random number generator */
+  /* Initialize the random number generator */
   srand(getpid());
 
   for (i = 0; i < 12; i++) {
