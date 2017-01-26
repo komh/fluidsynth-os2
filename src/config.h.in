@@ -144,8 +144,7 @@
 /* Define to enable libsndfile support */
 #undef LIBSNDFILE_SUPPORT
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #undef LT_OBJDIR
 
 /* Define to enable MidiShare driver */
@@ -153,9 +152,6 @@
 
 /* Define if using the MinGW32 environment */
 #undef MINGW32
-
-/* Define to 1 if your C compiler doesn't accept -c and -o together. */
-#undef NO_MINUS_C_MINUS_O
 
 /* Define to enable OSS driver */
 #undef OSS_SUPPORT
