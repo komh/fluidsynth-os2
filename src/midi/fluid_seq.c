@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -281,6 +281,7 @@ fluid_sequencer_register_client (fluid_sequencer_t* seq, const char *name,
 	nameCopy = FLUID_STRDUP(name);
 	if (nameCopy == NULL) {
 		fluid_log(FLUID_PANIC, "sequencer: Out of memory\n");
+		FLUID_FREE(client);
 		return FLUID_FAILED;
 	}
 
@@ -1203,9 +1204,11 @@ _fluid_seq_queue_send_queued_events(fluid_sequencer_t* seq)
 			_fluid_seq_queue_slide(seq);
 		} /* slide */
 
-
 		/* process queue0[cellNb] */
 		_fluid_seq_queue_send_cell_events(seq, cellNb);
+		
+		/* the current scale may have changed through a callback event */
+		nowTicks = fluid_sequencer_get_tick(seq);
 
 		/* next cell */
 		cellNb++;

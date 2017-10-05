@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -32,7 +32,6 @@
 #include "config.h"
 #endif
 #include "fluidsynth_priv.h"
-#include "fluid_event_queue.h"
 #include "fluid_list.h"
 #include "fluid_rev.h"
 #include "fluid_voice.h"
@@ -51,23 +50,11 @@
 
 #define FLUID_UNSET_PROGRAM     128     /* Program number used to unset a preset */
 
-#if defined(WITH_FLOAT)
-#define FLUID_SAMPLE_FORMAT     FLUID_SAMPLE_FLOAT
-#else
-#define FLUID_SAMPLE_FORMAT     FLUID_SAMPLE_DOUBLE
-#endif
-
 
 /***************************************************************
  *
  *                         ENUM
  */
-/*enum fluid_loop {
-  FLUID_UNLOOPED = 0,
-  FLUID_LOOP_DURING_RELEASE = 1,
-  FLUID_NOTUSED = 2,
-  FLUID_LOOP_UNTIL_RELEASE = 3
-};*/
 
 /**
  * Bank Select MIDI message styles. Default style is GS.
@@ -171,7 +158,6 @@ struct _fluid_synth_t
   int curmax;                        /**< current amount of samples present in the audio buffers */
   int dither_index;		     /**< current index in random dither value buffer: fluid_synth_(write_s16|dither_s16) */
 
-  char outbuf[256];                  /**< buffer for message output */
   float cpu_load;                    /**< CPU load in percent (CPU time required / audio synthesized time * 100) */
 
   fluid_tuning_t*** tuning;          /**< 128 banks of 128 programs for the tunings */
@@ -211,10 +197,12 @@ void fluid_synth_dither_s16(int *dither_index, int len, float* lin, float* rin,
 			    void* lout, int loff, int lincr,
 			    void* rout, int roff, int rincr);
 
+int fluid_synth_reset_reverb(fluid_synth_t* synth);
 int fluid_synth_set_reverb_preset(fluid_synth_t* synth, int num);
 int fluid_synth_set_reverb_full(fluid_synth_t* synth, int set, double roomsize,
                                 double damping, double width, double level);
 
+int fluid_synth_reset_chorus(fluid_synth_t* synth);
 int fluid_synth_set_chorus_full(fluid_synth_t* synth, int set, int nr, double level,
                                 double speed, double depth_ms, int type);
 

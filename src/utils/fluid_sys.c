@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -571,6 +571,8 @@ void fluid_profiling_print(void)
  *
  */
 
+#if OLD_GLIB_THREAD_API
+
 /* Rather than inline this one, we just declare it as a function, to prevent
  * GCC warning about inline failure. */
 fluid_cond_t *
@@ -579,6 +581,8 @@ new_fluid_cond (void)
   if (!g_thread_supported ()) g_thread_init (NULL);
   return g_cond_new ();
 }
+
+#endif
 
 static gpointer
 fluid_thread_high_prio (gpointer data)
@@ -603,7 +607,7 @@ fluid_thread_high_prio (gpointer data)
  * @return New thread pointer or NULL on error
  */
 fluid_thread_t *
-new_fluid_thread (fluid_thread_func_t func, void *data, int prio_level, int detach)
+new_fluid_thread (const char *name, fluid_thread_func_t func, void *data, int prio_level, int detach)
 {
   GThread *thread;
   fluid_thread_info_t *info;
@@ -611,10 +615,12 @@ new_fluid_thread (fluid_thread_func_t func, void *data, int prio_level, int deta
 
   g_return_val_if_fail (func != NULL, NULL);
 
+#if OLD_GLIB_THREAD_API
   /* Make sure g_thread_init has been called.
    * FIXME - Probably not a good idea in a shared library,
    * but what can we do *and* remain backwards compatible? */
   if (!g_thread_supported ()) g_thread_init (NULL);
+#endif
 
   if (prio_level > 0)
   {
@@ -629,16 +635,29 @@ new_fluid_thread (fluid_thread_func_t func, void *data, int prio_level, int deta
     info->func = func;
     info->data = data;
     info->prio_level = prio_level;
+#if NEW_GLIB_THREAD_API
+    thread = g_thread_try_new (name, fluid_thread_high_prio, info, &err);
+#else
     thread = g_thread_create (fluid_thread_high_prio, info, detach == FALSE, &err);
+#endif
   }
+#if NEW_GLIB_THREAD_API
+  else thread = g_thread_try_new (name, (GThreadFunc)func, data, &err);
+#else
   else thread = g_thread_create ((GThreadFunc)func, data, detach == FALSE, &err);
+#endif
 
   if (!thread)
   {
     FLUID_LOG(FLUID_ERR, "Failed to create the thread: %s",
               fluid_gerror_message (err));
     g_clear_error (&err);
+    return NULL;
   }
+
+#if NEW_GLIB_THREAD_API
+  if (detach) g_thread_unref (thread);  // Release thread reference, if caller wants to detach
+#endif
 
   return thread;
 }
@@ -726,7 +745,7 @@ new_fluid_timer (int msec, fluid_timer_callback_t callback, void* data,
 
   if (new_thread)
   {
-    timer->thread = new_fluid_thread (fluid_timer_run, timer, high_priority
+    timer->thread = new_fluid_thread ("timer", fluid_timer_run, timer, high_priority
                                       ? FLUID_SYS_TIMER_HIGH_PRIO_LEVEL : 0, FALSE);
     if (!timer->thread)
     {
@@ -869,7 +888,7 @@ fluid_istream_gets (fluid_istream_t in, char* buf, int len)
       return 0;
     }
 
-    if ((c == '\n'))
+    if (c == '\n')
     {
       *buf++ = 0;
       return 1;
@@ -962,9 +981,16 @@ fluid_server_socket_run (void *data)
 {
   fluid_server_socket_t *server_socket = (fluid_server_socket_t *)data;
   fluid_socket_t client_socket;
+#ifdef IPV6_SUPPORT
+  struct sockaddr_in6 addr;
+  char straddr[INET6_ADDRSTRLEN];
+#else
   struct sockaddr_in addr;
+  char straddr[INET_ADDRSTRLEN];
+#endif
   socklen_t addrlen = sizeof (addr);
   int retval;
+  FLUID_MEMSET((char *)&addr, 0, sizeof(addr));
 
   FLUID_LOG (FLUID_DBG, "Server listening for connections");
 
@@ -982,8 +1008,20 @@ fluid_server_socket_run (void *data)
       server_socket->cont = 0;
       return;
     } else {
+#ifdef HAVE_INETNTOP
+#ifdef IPV6_SUPPORT
+      inet_ntop(AF_INET6, &addr.sin6_addr, straddr, sizeof(straddr));
+#else
+      inet_ntop(AF_INET, &addr.sin_addr, straddr, sizeof(straddr));
+#endif
+#endif
+#ifdef HAVE_INETNTOP
       retval = server_socket->func (server_socket->data, client_socket,
-                                    inet_ntoa (addr.sin_addr));  // FIXME - inet_ntoa is not thread safe
+                                    straddr);
+#else
+      retval = server_socket->func (server_socket->data, client_socket,
+                                    inet_ntoa (addr.sin_addr));
+#endif
 
       if (retval != 0)
 	fluid_socket_close(client_socket);
@@ -997,10 +1035,26 @@ fluid_server_socket_t*
 new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
 {
   fluid_server_socket_t* server_socket;
+#ifdef IPV6_SUPPORT
+  struct sockaddr_in6 addr;
+#else
   struct sockaddr_in addr;
+#endif
   fluid_socket_t sock;
 
   g_return_val_if_fail (func != NULL, NULL);
+#ifdef IPV6_SUPPORT
+  sock = socket(AF_INET6, SOCK_STREAM, 0);
+  if (sock == INVALID_SOCKET) {
+    FLUID_LOG(FLUID_ERR, "Failed to create server socket");
+    return NULL;
+  }
+
+  FLUID_MEMSET((char *)&addr, 0, sizeof(struct sockaddr_in6));
+  addr.sin6_family = AF_INET6;
+  addr.sin6_addr = in6addr_any;
+  addr.sin6_port = htons(port);
+#else
 
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock == INVALID_SOCKET) {
@@ -1012,8 +1066,8 @@ new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
   addr.sin_port = htons(port);
-
-  if (bind(sock, (const struct sockaddr *) &addr, sizeof(struct sockaddr_in)) == SOCKET_ERROR) {
+#endif
+  if (bind(sock, (const struct sockaddr *) &addr, sizeof(addr)) == SOCKET_ERROR) {
     FLUID_LOG(FLUID_ERR, "Failed to bind server socket");
     fluid_socket_close(sock);
     return NULL;
@@ -1037,7 +1091,7 @@ new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
   server_socket->data = data;
   server_socket->cont = 1;
 
-  server_socket->thread = new_fluid_thread(fluid_server_socket_run, server_socket,
+  server_socket->thread = new_fluid_thread("server", fluid_server_socket_run, server_socket,
                                            0, FALSE);
   if (server_socket->thread == NULL) {
     FLUID_FREE(server_socket);
@@ -1089,9 +1143,18 @@ static void fluid_server_socket_run (void *data)
 {
   fluid_server_socket_t *server_socket = (fluid_server_socket_t *)data;
   fluid_socket_t client_socket;
+#ifdef IPV6_SUPPORT
+  struct sockaddr_in6 addr;
+  char straddr[INET6_ADDRSTRLEN];
+#else
   struct sockaddr_in addr;
+#ifdef HAVE_INETNTOP
+  char straddr[INET_ADDRSTRLEN];
+#endif
+#endif
   socklen_t addrlen = sizeof (addr);
   int r;
+  FLUID_MEMSET((char *)&addr, 0, sizeof(addr));
 
   FLUID_LOG(FLUID_DBG, "Server listening for connections");
 
@@ -1111,8 +1174,20 @@ static void fluid_server_socket_run (void *data)
     }
     else
     {
+#ifdef HAVE_INETNTOP
+#ifdef IPV6_SUPPORT
+      inet_ntop(AF_INET6, &addr.sin6_addr, straddr, sizeof(straddr));
+#else
+      inet_ntop(AF_INET, &addr.sin_addr, straddr, sizeof(straddr));
+#endif
+#endif
+#ifdef HAVE_INETNTOP
       r = server_socket->func (server_socket->data, client_socket,
-                               inet_ntoa (addr.sin_addr));  // FIXME - inet_ntoa is not thread safe
+                               straddr);
+#else
+      r = server_socket->func (server_socket->data, client_socket,
+                               inet_ntoa (addr.sin_addr));
+#endif
       if (r != 0)
 	fluid_socket_close (client_socket);
     }
@@ -1125,7 +1200,12 @@ fluid_server_socket_t*
 new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
 {
   fluid_server_socket_t* server_socket;
+#ifdef IPV6_SUPPORT
+  struct sockaddr_in6 addr;
+#else
   struct sockaddr_in addr;
+#endif
+
   fluid_socket_t sock;
   WSADATA wsaData;
   int retval;
@@ -1140,6 +1220,18 @@ new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
     FLUID_LOG(FLUID_ERR, "Server socket creation error: WSAStartup failed: %d", retval);
     return NULL;
   }
+#ifdef IPV6_SUPPORT
+  sock = socket (AF_INET6, SOCK_STREAM, 0);
+  if (sock == INVALID_SOCKET)
+  {
+    FLUID_LOG (FLUID_ERR, "Failed to create server socket: %ld", WSAGetLastError ());
+    WSACleanup ();
+    return NULL;
+  }
+  addr.sin6_family = AF_INET6;
+  addr.sin6_port = htons (port);
+  addr.sin6_addr = in6addr_any;
+#else
 
   sock = socket (AF_INET, SOCK_STREAM, 0);
 
@@ -1153,7 +1245,7 @@ new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
   addr.sin_family = AF_INET;
   addr.sin_port = htons (port);
   addr.sin_addr.s_addr = htonl (INADDR_ANY);
-
+#endif
   retval = bind (sock, (struct sockaddr *)&addr, sizeof (addr));
 
   if (retval == SOCKET_ERROR)
@@ -1187,7 +1279,7 @@ new_fluid_server_socket(int port, fluid_server_func_t func, void* data)
   server_socket->data = data;
   server_socket->cont = 1;
 
-  server_socket->thread = new_fluid_thread(fluid_server_socket_run, server_socket,
+  server_socket->thread = new_fluid_thread("server", fluid_server_socket_run, server_socket,
                                            0, FALSE);
   if (server_socket->thread == NULL)
   {

@@ -146,7 +146,7 @@ finish:
 }
 
 int rtkit_get_max_realtime_priority(DBusConnection *connection) {
-        long long retval;
+        long long retval = 0;
         int err;
 
         err = rtkit_get_int_property(connection, "MaxRealtimePriority", &retval);
@@ -154,7 +154,7 @@ int rtkit_get_max_realtime_priority(DBusConnection *connection) {
 }
 
 int rtkit_get_min_nice_level(DBusConnection *connection, int* min_nice_level) {
-        long long retval;
+        long long retval = 0;
         int err;
 
         err = rtkit_get_int_property(connection, "MinNiceLevel", &retval);
@@ -164,7 +164,7 @@ int rtkit_get_min_nice_level(DBusConnection *connection, int* min_nice_level) {
 }
 
 long long rtkit_get_rttime_nsec_max(DBusConnection *connection) {
-        long long retval;
+        long long retval = 0;
         int err;
 
         err = rtkit_get_int_property(connection, "RTTimeNSecMax", &retval);
@@ -292,30 +292,6 @@ finish:
         return ret;
 }
 
-#else
-
-int rtkit_make_realtime(DBusConnection *connection, pid_t thread, int priority) {
-        return -ENOTSUP;
-}
-
-int rtkit_make_high_priority(DBusConnection *connection, pid_t thread, int nice_level) {
-        return -ENOTSUP;
-}
-
-int rtkit_get_max_realtime_priority(DBusConnection *connection) {
-        return -ENOTSUP;
-}
-
-int rtkit_get_min_nice_level(DBusConnection *connection, int* min_nice_level) {
-        return -ENOTSUP;
-}
-
-long long rtkit_get_rttime_nsec_max(DBusConnection *connection) {
-        return -ENOTSUP;
-}
-
-#endif
-
 #ifndef RLIMIT_RTTIME
 #  define RLIMIT_RTTIME 15
 #endif
@@ -334,6 +310,9 @@ int fluid_rtkit_make_realtime(pid_t thread, int priority) {
 	int max_prio, res;
 	long long max_rttime;
 	struct rlimit old_limit, new_limit;
+
+	if (!dbus_threads_init_default())
+		return -ENOMEM;
 
 	/* Initialize system bus connection */
 	dbus_error_init(&error);
@@ -372,4 +351,33 @@ int fluid_rtkit_make_realtime(pid_t thread, int priority) {
 	
 }
 
-#endif
+
+#else
+
+int rtkit_make_realtime(DBusConnection *connection, pid_t thread, int priority) {
+        return -ENOTSUP;
+}
+
+int rtkit_make_high_priority(DBusConnection *connection, pid_t thread, int nice_level) {
+        return -ENOTSUP;
+}
+
+int rtkit_get_max_realtime_priority(DBusConnection *connection) {
+        return -ENOTSUP;
+}
+
+int rtkit_get_min_nice_level(DBusConnection *connection, int* min_nice_level) {
+        return -ENOTSUP;
+}
+
+long long rtkit_get_rttime_nsec_max(DBusConnection *connection) {
+        return -ENOTSUP;
+}
+
+int fluid_rtkit_make_realtime(pid_t thread, int priority) {
+        return -ENOTSUP;
+}
+
+#endif /* defined(__linux__) || defined(__APPLE__) */
+
+#endif /* DBUS_SUPPORT */

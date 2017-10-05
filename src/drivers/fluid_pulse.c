@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -158,7 +158,7 @@ new_fluid_pulse_audio_driver2(fluid_settings_t* settings,
   FLUID_LOG(FLUID_INFO, "Using PulseAudio driver");
 
   /* Create the audio thread */
-  dev->thread = new_fluid_thread (func ? fluid_pulse_audio_run2 : fluid_pulse_audio_run,
+  dev->thread = new_fluid_thread ("pulse-audio", func ? fluid_pulse_audio_run2 : fluid_pulse_audio_run,
                                   dev, realtime_prio, FALSE);
   if (!dev->thread)
     goto error_recovery;

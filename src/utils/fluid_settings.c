@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -84,7 +84,7 @@ typedef struct {
 
 
 static fluid_str_setting_t*
-new_fluid_str_setting(const char* value, char* def, int hints, fluid_str_update_t fun, void* data)
+new_fluid_str_setting(const char* value, const char* def, int hints, fluid_str_update_t fun, void* data)
 {
   fluid_str_setting_t* str;
 
@@ -352,9 +352,9 @@ fluid_settings_get(fluid_settings_t* settings, const char *name,
 
   ntokens = fluid_settings_tokenize (name, buf, tokens);
 
-  for (n = 0; n < ntokens; n++) {
+  if (table == NULL || ntokens <= 0) return 0;
 
-    if (table == NULL) return 0;
+  for (n = 0; n < ntokens; n++) {
 
     node = fluid_hashtable_lookup(table, tokens[n]);
     if (!node) return 0;
@@ -386,6 +386,8 @@ fluid_settings_set(fluid_settings_t* settings, const char *name, void* value)
   char *dupname;
 
   num = fluid_settings_tokenize (name, buf, tokens) - 1;
+  if (num == 0)
+    return 0;
 
   for (n = 0; n < num; n++) {
 
@@ -439,7 +441,7 @@ fluid_settings_set(fluid_settings_t* settings, const char *name, void* value)
 /** returns 1 if the value has been registered correctly, 0
     otherwise */
 int
-fluid_settings_register_str(fluid_settings_t* settings, char* name, char* def, int hints,
+fluid_settings_register_str(fluid_settings_t* settings, const char* name, const char* def, int hints,
 			    fluid_str_update_t fun, void* data)
 {
   fluid_setting_node_t *node;
@@ -448,6 +450,7 @@ fluid_settings_register_str(fluid_settings_t* settings, char* name, char* def, i
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -478,7 +481,7 @@ fluid_settings_register_str(fluid_settings_t* settings, char* name, char* def, i
 /** returns 1 if the value has been register correctly, zero
     otherwise */
 int
-fluid_settings_register_num(fluid_settings_t* settings, char* name, double def,
+fluid_settings_register_num(fluid_settings_t* settings, const char* name, double def,
 			    double min, double max, int hints,
 			    fluid_num_update_t fun, void* data)
 {
@@ -487,6 +490,7 @@ fluid_settings_register_num(fluid_settings_t* settings, char* name, double def,
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   /* For now, all floating point settings are bounded below and above */
   hints |= FLUID_HINT_BOUNDED_BELOW | FLUID_HINT_BOUNDED_ABOVE;
@@ -525,7 +529,7 @@ fluid_settings_register_num(fluid_settings_t* settings, char* name, double def,
 /** returns 1 if the value has been register correctly, zero
     otherwise. */
 int
-fluid_settings_register_int(fluid_settings_t* settings, char* name, int def,
+fluid_settings_register_int(fluid_settings_t* settings, const char* name, int def,
 			    int min, int max, int hints,
 			    fluid_int_update_t fun, void* data)
 {
@@ -534,6 +538,7 @@ fluid_settings_register_int(fluid_settings_t* settings, char* name, int def,
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   /* For now, all integer settings are bounded below and above */
   hints |= FLUID_HINT_BOUNDED_BELOW | FLUID_HINT_BOUNDED_ABOVE;
@@ -584,6 +589,7 @@ fluid_settings_get_type(fluid_settings_t* settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, FLUID_NO_TYPE);
   fluid_return_val_if_fail (name != NULL, FLUID_NO_TYPE);
+  fluid_return_val_if_fail (name[0] != '\0', FLUID_NO_TYPE);
 
   fluid_rec_mutex_lock (settings->mutex);
   type = fluid_settings_get (settings, name, &node) ? node->type : FLUID_NO_TYPE;
@@ -607,6 +613,7 @@ fluid_settings_get_hints(fluid_settings_t* settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -643,6 +650,7 @@ fluid_settings_is_realtime(fluid_settings_t* settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -680,6 +688,7 @@ fluid_settings_setstr(fluid_settings_t* settings, const char *name, const char *
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -747,6 +756,7 @@ fluid_settings_copystr(fluid_settings_t* settings, const char *name,
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (str != NULL, 0);
   fluid_return_val_if_fail (len > 0, 0);
 
@@ -806,6 +816,7 @@ fluid_settings_dupstr(fluid_settings_t* settings, const char *name, char** str)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (str != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -868,6 +879,7 @@ fluid_settings_getstr(fluid_settings_t* settings, const char *name, char** str)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (str != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -914,6 +926,7 @@ fluid_settings_str_equal (fluid_settings_t* settings, const char *name, const ch
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (s != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -955,6 +968,7 @@ fluid_settings_getstr_default(fluid_settings_t* settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, NULL);
   fluid_return_val_if_fail (name != NULL, NULL);
+  fluid_return_val_if_fail (name[0] != '\0', NULL);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -996,6 +1010,7 @@ fluid_settings_add_option(fluid_settings_t* settings, const char *name, const ch
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (s != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -1029,6 +1044,7 @@ fluid_settings_remove_option(fluid_settings_t* settings, const char *name, const
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (s != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -1073,6 +1089,7 @@ fluid_settings_setnum(fluid_settings_t* settings, const char *name, double val)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -1119,6 +1136,7 @@ fluid_settings_getnum(fluid_settings_t* settings, const char *name, double* val)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (val != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -1151,6 +1169,7 @@ fluid_settings_getnum_range(fluid_settings_t* settings, const char *name,
 
   fluid_return_if_fail (settings != NULL);
   fluid_return_if_fail (name != NULL);
+  fluid_return_if_fail (name[0] != '\0');
   fluid_return_if_fail (min != NULL);
   fluid_return_if_fail (max != NULL);
 
@@ -1181,6 +1200,7 @@ fluid_settings_getnum_default(fluid_settings_t* settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, 0.0);
   fluid_return_val_if_fail (name != NULL, 0.0);
+  fluid_return_val_if_fail (name[0] != '\0', 0.0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -1212,6 +1232,7 @@ fluid_settings_setint(fluid_settings_t* settings, const char *name, int val)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -1258,6 +1279,7 @@ fluid_settings_getint(fluid_settings_t* settings, const char *name, int* val)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
   fluid_return_val_if_fail (val != NULL, 0);
 
   fluid_rec_mutex_lock (settings->mutex);
@@ -1289,6 +1311,7 @@ fluid_settings_getint_range(fluid_settings_t* settings, const char *name,
 
   fluid_return_if_fail (settings != NULL);
   fluid_return_if_fail (name != NULL);
+  fluid_return_if_fail (name[0] != '\0');
   fluid_return_if_fail (min != NULL);
   fluid_return_if_fail (max != NULL);
 
@@ -1319,6 +1342,7 @@ fluid_settings_getint_default(fluid_settings_t* settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, 0);
   fluid_return_val_if_fail (name != NULL, 0);
+  fluid_return_val_if_fail (name[0] != '\0', 0);
 
   fluid_rec_mutex_lock (settings->mutex);
 
@@ -1355,6 +1379,7 @@ fluid_settings_foreach_option (fluid_settings_t* settings, const char *name,
 
   fluid_return_if_fail (settings != NULL);
   fluid_return_if_fail (name != NULL);
+  fluid_return_if_fail (name[0] != '\0');
   fluid_return_if_fail (func != NULL);
 
   fluid_rec_mutex_lock (settings->mutex);       /* ++ lock */
@@ -1398,6 +1423,7 @@ fluid_settings_option_count (fluid_settings_t *settings, const char *name)
 
   fluid_return_val_if_fail (settings != NULL, -1);
   fluid_return_val_if_fail (name != NULL, -1);
+  fluid_return_val_if_fail (name[0] != '\0', -1);
 
   fluid_rec_mutex_lock (settings->mutex);
   if (fluid_settings_get(settings, name, &node) && node->type == FLUID_STR_TYPE)
@@ -1428,6 +1454,7 @@ fluid_settings_option_concat (fluid_settings_t *settings, const char *name,
 
   fluid_return_val_if_fail (settings != NULL, NULL);
   fluid_return_val_if_fail (name != NULL, NULL);
+  fluid_return_val_if_fail (name[0] != '\0', NULL);
 
   if (!separator) separator = ", ";
 
@@ -1460,10 +1487,10 @@ fluid_settings_option_concat (fluid_settings_t *settings, const char *name,
   newlist = fluid_list_sort (newlist, fluid_list_str_compare_func);
 
   str = FLUID_MALLOC (len);
-  str[0] = 0;
 
   if (str)
   {
+    str[0] = 0;
     for (p = newlist; p; p = p->next)
     {
       option = fluid_list_get (p);

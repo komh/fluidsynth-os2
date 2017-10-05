@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -30,6 +30,9 @@
 
 #if !defined(WIN32) && !defined(MACINTOSH)
 #define _GNU_SOURCE
+#endif
+
+#if defined(HAVE_GETOPT_H)
 #include <getopt.h>
 #endif
 
@@ -66,13 +69,12 @@ int option_help = 0;		/* set to 1 if "-o help" is specified */
 /*
  * support for the getopt function
  */
-#if !defined(WIN32) && !defined(MACINTOSH)
+#if defined(HAVE_GETOPT_H)
 #define GETOPT_SUPPORT 1
 int getopt(int argc, char * const argv[], const char *optstring);
 extern char *optarg;
 extern int optind, opterr, optopt;
 #endif
-
 
 /* Process a command line option -o setting=value, for example: -o synth.polyhony=16 */
 void process_o_cmd_line_option(fluid_settings_t* settings, char* optarg)
@@ -92,6 +94,11 @@ void process_o_cmd_line_option(fluid_settings_t* settings, char* optarg)
   if (strcmp (optarg, "help") == 0)
   {
     option_help = 1;
+    return;
+  }
+
+  if (strcmp (optarg, "") == 0) {
+    fprintf (stderr, "Invalid -o option (name part is empty)\n");
     return;
   }
 
@@ -293,7 +300,9 @@ int main(int argc, char** argv)
   int with_server = 0;
   int dump = 0;
   int fast_render = 0;
+#ifdef LASH_ENABLED
   int connect_lash = 1;
+#endif
   char *optchars = "a:C:c:dE:f:F:G:g:hijK:L:lm:nO:o:p:R:r:sT:Vvz:";
 #ifdef LASH_ENABLED
   int enabled_lash = 0;		/* set to TRUE if lash gets enabled */
@@ -459,7 +468,9 @@ int main(int argc, char** argv)
       fluid_settings_setint(settings, "synth.audio-channels", audio_channels);
       break;
     case 'l':			/* disable LASH */
+#ifdef LASH_ENABLED
       connect_lash = 0;
+#endif
       break;
     case 'm':
       if (FLUID_STRCMP (optarg, "help") == 0)
@@ -593,7 +604,8 @@ int main(int argc, char** argv)
     midi_in = 0;
     interactive = 0;
     with_server = 0;
-    fluid_settings_setstr(settings, "player.timing-source", "sample");  
+    fluid_settings_setstr(settings, "player.timing-source", "sample");
+    fluid_settings_setint(settings, "synth.lock-memory", 0);
     fluid_settings_setint(settings, "synth.parallel-render", 1); /* TODO: Fast_render should not need this, but currently do */
   }
   
@@ -698,6 +710,16 @@ int main(int argc, char** argv)
   }
 
   if (player != NULL) {
+
+    if (fluid_synth_get_sfont(synth, 0) == NULL) {
+      /* Try to load the default soundfont if no soundfont specified */
+      char *s;
+      if (fluid_settings_getstr(settings, "synth.default-soundfont", &s) <= 0)
+        s = NULL;
+      if ((s != NULL) && (s[0] != '\0'))
+        fluid_synth_sfload(synth, s, 1);
+    }
+
     fluid_player_play(player);
   }
 
@@ -825,7 +847,7 @@ void
 print_welcome()
 {
   printf("FluidSynth version %s\n"
-	 "Copyright (C) 2000-2011 Peter Hanappe and others.\n"
+	 "Copyright (C) 2000-2012 Peter Hanappe and others.\n"
 	 "Distributed under the LGPL license.\n"
 	 "SoundFont(R) is a registered trademark of E-mu Systems, Inc.\n\n",
 	 FLUIDSYNTH_VERSION);

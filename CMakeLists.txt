@@ -3,16 +3,16 @@
 # Copyright (C) 2003-2011 Peter Hanappe and others.
 #
 # This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Library General Public License
-# as published by the Free Software Foundation; either version 2 of
+# modify it under the terms of the GNU Lesser General Public License
+# as published by the Free Software Foundation; either version 2.1 of
 # the License, or (at your option) any later version.
 #
 # This library is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Library General Public License for more details.
+# Lesser General Public License for more details.
 #
-# You should have received a copy of the GNU Library General Public
+# You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
 # 02111-1307, USA
@@ -29,7 +29,7 @@ set ( PACKAGE "fluidsynth" )
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 1 )
 set ( FLUIDSYNTH_VERSION_MINOR 1 )
-set ( FLUIDSYNTH_VERSION_MICRO 5 )
+set ( FLUIDSYNTH_VERSION_MICRO 7 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -43,8 +43,8 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # if any interfaces have been removed/changed (compatibility broken): AGE=0
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 1 )
-set ( LIB_VERSION_AGE 5 )
-set ( LIB_VERSION_REVISION 1 )
+set ( LIB_VERSION_AGE 6 )
+set ( LIB_VERSION_REVISION 0 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -58,6 +58,7 @@ option ( enable-fpe-check "enable Floating Point Exception checks and debug mess
 option ( enable-debug "enable debugging (default=no)" off )
 
 # Options enabled by default
+option ( enable-pkgconfig "use pkg-config to locate fluidsynth's (mostly optional) dependencies" on )
 option ( enable-libsndfile "compile libsndfile support (if it is available)" on )
 option ( enable-aufile "compile support for sound file output" on )
 option ( enable-pulseaudio "compile PulseAudio support (if it is available)" on )
@@ -66,6 +67,7 @@ option ( enable-midishare "compile MidiShare support (if it is available)" on )
 option ( enable-readline "compile readline lib line editing (if it is available)" on )
 option ( enable-dbus "compile DBUS support (if it is available)" on )
 option ( BUILD_SHARED_LIBS "Build a shared object or DLL" on )
+option ( enable-ipv6  "enable ipv6 support " on )
 
 # Platform specific options
 if ( ${CMAKE_SYSTEM} MATCHES "Linux" )
@@ -100,6 +102,7 @@ include ( DefaultDirs )
 # Basic C library checks
 include ( CheckSTDC )
 include ( CheckIncludeFile )
+include ( CheckFunctionExists )
 check_include_file ( string.h HAVE_STRING_H )
 check_include_file ( stdlib.h HAVE_STDLIB_H )
 check_include_file ( stdio.h HAVE_STDIO_H )
@@ -121,6 +124,7 @@ check_include_file ( arpa/inet.h HAVE_ARPA_INET_H )
 check_include_file ( limits.h  HAVE_LIMITS_H )
 check_include_file ( pthread.h HAVE_PTHREAD_H )
 check_include_file ( signal.h HAVE_SIGNAL_H )
+check_include_file ( getopt.h HAVE_GETOPT_H )
 include ( TestInline )
 include ( TestVLA )
 include ( TestBigEndian )
@@ -140,9 +144,9 @@ if ( CMAKE_COMPILER_IS_GNUCC )
           "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined" )
   endif ( NOT APPLE AND NOT OS2 )
   set ( GNUCC_WARNING_FLAGS "-Wall -W -Wpointer-arith -Wbad-function-cast -Wno-cast-qual -Wcast-align -Wstrict-prototypes -Wno-unused-parameter -Wdeclaration-after-statement" )
-  set ( CMAKE_C_FLAGS_DEBUG "-g -DDEBUG ${GNUCC_WARNING_FLAGS}" )
-  set ( CMAKE_C_FLAGS_RELEASE "-O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -DNDEBUG ${GNUCC_WARNING_FLAGS}" )
-  set ( CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -g -fomit-frame-pointer -funroll-all-loops -finline-functions -DNDEBUG ${GNUCC_WARNING_FLAGS}" )
+  set ( CMAKE_C_FLAGS_DEBUG "-std=gnu89 -g -fvisibility=hidden -DDEBUG ${GNUCC_WARNING_FLAGS}" )
+  set ( CMAKE_C_FLAGS_RELEASE "-std=gnu89 -O2 -fomit-frame-pointer -funroll-all-loops -finline-functions -fvisibility=hidden -DNDEBUG ${GNUCC_WARNING_FLAGS}" )
+  set ( CMAKE_C_FLAGS_RELWITHDEBINFO "-std=gnu89 -O2 -g -fomit-frame-pointer -funroll-all-loops -finline-functions -fvisibility=hidden -DNDEBUG ${GNUCC_WARNING_FLAGS}" )
 endif ( CMAKE_COMPILER_IS_GNUCC )
 
 # Windows
@@ -157,8 +161,8 @@ if ( WIN32 )
   check_include_files ( "windows.h;mmsystem.h" HAVE_MMSYSTEM_H )
   set ( WINDOWS_SUPPORT ${HAVE_WINDOWS_H} )
   set ( WINDOWS_LIBS "dsound;winmm;ws2_32" )
-  set ( LIBFLUID_CPPFLAGS "-DFLUIDSYNTH_DLL_EXPORTS" )
   set ( FLUID_CPPFLAGS "-DFLUIDSYNTH_NOT_A_DLL" )
+  set ( LIBFLUID_CPPFLAGS "${FLUID_CPPFLAGS} -DFLUIDSYNTH_DLL_EXPORTS" )
   set ( CMAKE_DEBUG_POSTFIX "_debug" )
   # MinGW compiler (a Windows GCC port)
   if ( MINGW )
@@ -167,9 +171,9 @@ if ( WIN32 )
   endif  ( MINGW )
 else ( WIN32 )
 # Check PThreads, but not in Windows
-  find_package ( Pthreads REQUIRED )
-  set ( HAVE_LIBPTHREAD ${PTHREADS_FOUND} )
-  set ( LIBFLUID_LIBS "m" )
+  find_package ( Threads REQUIRED )
+  set ( HAVE_LIBPTHREAD ${Threads_FOUND} )
+  set ( LIBFLUID_LIBS "m" ${CMAKE_THREAD_LIBS_INIT} )
 endif ( WIN32 )
 
 # IBM OS/2
@@ -180,7 +184,7 @@ if ( ${CMAKE_SYSTEM} MATCHES "OS2" )
   set ( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Zbin-files" )
   set ( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Zbin-files" )
   if ( enable-dart )
-    check_include_file ( os2me.h HAVE_DART_H )
+    check_include_files ( "os2.h;os2me.h" HAVE_DART_H )
     set ( DART_SUPPORT ${HAVE_DART_H} )
     unset ( DART_INCLUDE_DIRS CACHE )
   endif ( enable-dart )
@@ -221,6 +225,16 @@ if ( ${CMAKE_SYSTEM} MATCHES "Darwin" )
     set ( MACOSX_FRAMEWORK 1 )
   endif ( enable-framework )
 endif ( ${CMAKE_SYSTEM} MATCHES "Darwin" )
+
+
+unset ( HAVE_INETNTOP CACHE )
+unset ( IPV6_SUPPORT CACHE )
+CHECK_FUNCTION_EXISTS ( "inet_ntop" HAVE_INETNTOP )
+if ( enable-ipv6 )
+  if ( HAVE_INETNTOP )
+    set ( IPV6_SUPPORT 1 )
+  endif ( HAVE_INETNTOP )
+endif ( enable-ipv6 )
 
 unset ( WITH_FLOAT CACHE )
 if ( enable-floats )
@@ -264,6 +278,11 @@ if ( enable-debug )
           "Choose the build type, options: Debug Release RelWithDebInfo" FORCE )
 endif ( enable-debug )
 
+if ( NOT CMAKE_BUILD_TYPE )
+    set ( CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
+          "Choose the build type, options: Debug Release RelWithDebInfo" FORCE )
+endif ( NOT CMAKE_BUILD_TYPE )
+
 unset ( ENABLE_DEBUG CACHE )
 unset ( DEBUG CACHE )
 if ( CMAKE_BUILD_TYPE MATCHES "Debug" )
@@ -271,57 +290,117 @@ if ( CMAKE_BUILD_TYPE MATCHES "Debug" )
     set ( DEBUG 1 )
 endif ( CMAKE_BUILD_TYPE MATCHES "Debug" )
 
-# Mandatory tool: pkg-config
-find_package ( PkgConfig REQUIRED )
 
-# Mandatory libraries: glib and gthread
-pkg_check_modules ( GLIB REQUIRED glib-2.0>=2.6.5 gthread-2.0>=2.6.5 )
+if(NOT enable-pkgconfig)
 
-include ( UnsetPkgConfig )
+    FIND_LIBRARY( GLIB_LIB NAMES glib glib-2.0 PATH GLIB_LIBRARY_DIR NO_DEFAULT_PATH)
+    FIND_LIBRARY( GTHREAD_LIB NAMES gthread gthread-2.0 PATH GTHREAD_LIBRARY_DIR NO_DEFAULT_PATH )
+    FIND_PATH( GLIBH_DIR glib.h PATH GLIB_INCLUDE_DIR NO_DEFAULT_PATH )
+    FIND_PATH( GLIBCONF_DIR glibconfig.h PATH GLIBCONF_INCLUDE_DIR NO_DEFAULT_PATH )
+    
+    IF( GLIB_LIB MATCHES "GLIB_LIB-NOTFOUND" OR
+            GTHREAD_LIB MATCHES "GTHREAD_LIB-NOTFOUND" OR
+            GLIBH_DIR MATCHES "GLIBH_DIR-NOTFOUND" OR
+            GLIBCONF_DIR MATCHES "GLIBCONF_DIR-NOTFOUND")
+            message( WARNING "Not sure if I found GLIB, continuing anyway.")
+    ENDIF()
+    
+    SET( GLIB_INCLUDE_DIRS ${GLIBH_DIR} ${GLIBCONF_DIR} )
+    SET( GLIB_LIBRARIES ${GLIB_LIB} ${GTHREAD_LIB} )
+    
+    message( STATUS "GLIB_INCLUDE_DIRS: " ${GLIB_INCLUDE_DIRS} )
+    message( STATUS "GLIB_LIBRARIES: " ${GLIB_LIBRARIES} )
 
-# Optional features
-unset ( LIBSNDFILE_SUPPORT CACHE )
-unset ( LIBSNDFILE_HASVORBIS CACHE )
-if ( enable-libsndfile )
-  pkg_check_modules ( LIBSNDFILE sndfile>=1.0.0 )
-  set ( LIBSNDFILE_SUPPORT ${LIBSNDFILE_FOUND} )
-  if ( LIBSNDFILE_SUPPORT )
-    pkg_check_modules ( LIBSNDFILE_VORBIS sndfile>=1.0.18 )
-    set ( LIBSNDFILE_HASVORBIS ${LIBSNDFILE_VORBIS_FOUND} )
-  endif ( LIBSNDFILE_SUPPORT )
-else ( enable-libsndfile )
-  unset_pkg_config ( LIBSNDFILE )
-  unset_pkg_config ( LIBSNDFILE_VORBIS )
-endif ( enable-libsndfile )
+else(NOT enable-pkgconfig)
+
+    find_package ( PkgConfig REQUIRED )
+
+    # Mandatory libraries: glib and gthread
+    pkg_check_modules ( GLIB REQUIRED glib-2.0>=2.6.5 gthread-2.0>=2.6.5 )
+
+    include ( UnsetPkgConfig )
+
+    # Optional features
+    unset ( LIBSNDFILE_SUPPORT CACHE )
+    unset ( LIBSNDFILE_HASVORBIS CACHE )
+    if ( enable-libsndfile )
+    pkg_check_modules ( LIBSNDFILE sndfile>=1.0.0 )
+    set ( LIBSNDFILE_SUPPORT ${LIBSNDFILE_FOUND} )
+    if ( LIBSNDFILE_SUPPORT )
+        pkg_check_modules ( LIBSNDFILE_VORBIS sndfile>=1.0.18 )
+        set ( LIBSNDFILE_HASVORBIS ${LIBSNDFILE_VORBIS_FOUND} )
+    endif ( LIBSNDFILE_SUPPORT )
+    else ( enable-libsndfile )
+    unset_pkg_config ( LIBSNDFILE )
+    unset_pkg_config ( LIBSNDFILE_VORBIS )
+    endif ( enable-libsndfile )
+
+    unset ( PULSE_SUPPORT CACHE )
+    if ( enable-pulseaudio )
+    pkg_check_modules ( PULSE libpulse-simple>=0.9.8 )
+    set ( PULSE_SUPPORT ${PULSE_FOUND} )
+    else ( enable-pulseaudio )
+    unset_pkg_config ( PULSE )
+    endif ( enable-pulseaudio )
+
+    unset ( ALSA_SUPPORT CACHE )
+    if ( enable-alsa )
+    pkg_check_modules ( ALSA alsa>=0.9.1 )
+    set ( ALSA_SUPPORT ${ALSA_FOUND} )
+    else ( enable-alsa )
+    unset_pkg_config ( ALSA )
+    endif ( enable-alsa )
+
+    unset ( PORTAUDIO_SUPPORT CACHE )
+    if ( enable-portaudio )
+    pkg_check_modules ( PORTAUDIO portaudio-2.0>=19 )
+    set ( PORTAUDIO_SUPPORT ${PORTAUDIO_FOUND} )
+    else ( enable-portaudio )
+    unset_pkg_config ( PORTAUDIO )
+    endif ( enable-portaudio )
+    
+    unset ( JACK_SUPPORT CACHE )
+    if ( enable-jack )
+    pkg_check_modules ( JACK jack )
+    set ( JACK_SUPPORT ${JACK_FOUND} )
+    else ( enable-jack )
+    unset_pkg_config ( JACK )
+    endif ( enable-jack )
+    
+    unset ( LASH_SUPPORT CACHE )
+    if ( enable-lash )
+    pkg_check_modules ( LASH lash-1.0>=0.3 )
+    if ( LASH_FOUND )
+        set ( LASH_SUPPORT 1 )
+        add_definitions ( -DHAVE_LASH )
+    endif ( LASH_FOUND )
+    else ( enable-lash )
+    unset_pkg_config ( LASH )
+    remove_definitions( -DHAVE_LASH )
+    endif ( enable-lash )
+
+    unset ( LADCCA_SUPPORT CACHE )
+    if ( enable-ladcca )
+    pkg_check_modules ( LADCCA ladcca-1.0>=0.3 )
+    set ( LADCCA_SUPPORT ${LADCCA_FOUND} )
+    else ( enable-ladcca )
+    unset_pkg_config ( LADCCA )
+    endif ( enable-ladcca )
+
+    unset ( DBUS_SUPPORT CACHE )
+    if ( enable-dbus )
+    pkg_check_modules ( DBUS dbus-1>=1.0.0 )
+    set ( DBUS_SUPPORT ${DBUS_FOUND} )
+    else ( enable-dbus )
+    unset_pkg_config ( DBUS )
+    endif ( enable-dbus )
+    
+endif(NOT enable-pkgconfig)
 
 unset ( AUFILE_SUPPORT CACHE )
 if ( enable-aufile )
   set ( AUFILE_SUPPORT 1 )
 endif ( enable-aufile )
-
-unset ( PULSE_SUPPORT CACHE )
-if ( enable-pulseaudio )
-  pkg_check_modules ( PULSE libpulse-simple>=0.9.8 )
-  set ( PULSE_SUPPORT ${PULSE_FOUND} )
-else ( enable-pulseaudio )
-  unset_pkg_config ( PULSE )
-endif ( enable-pulseaudio )
-
-unset ( ALSA_SUPPORT CACHE )
-if ( enable-alsa )
-  pkg_check_modules ( ALSA alsa>=0.9.1 )
-  set ( ALSA_SUPPORT ${ALSA_FOUND} )
-else ( enable-alsa )
-  unset_pkg_config ( ALSA )
-endif ( enable-alsa )
-
-unset ( PORTAUDIO_SUPPORT CACHE )
-if ( enable-portaudio )
-  pkg_check_modules ( PORTAUDIO portaudio-2.0>=19 )
-  set ( PORTAUDIO_SUPPORT ${PORTAUDIO_FOUND} )
-else ( enable-portaudio )
-  unset_pkg_config ( PORTAUDIO )
-endif ( enable-portaudio )
 
 find_package ( OSS QUIET )
 set ( OSS_SUPPORT ${OSS_FOUND} )
@@ -333,14 +412,6 @@ if ( enable_midishare )
 else ( enable_midishare )
   unset ( MidiShare_LIBS CACHE )
 endif ( enable_midishare )
-
-unset ( JACK_SUPPORT CACHE )
-if ( enable-jack )
-  pkg_check_modules ( JACK jack )
-  set ( JACK_SUPPORT ${JACK_FOUND} )
-else ( enable-jack )
-  unset_pkg_config ( JACK )
-endif ( enable-jack )
 
 unset ( WITH_READLINE CACHE )
 if ( enable-readline )
@@ -354,33 +425,6 @@ else ( enable-readline )
   unset ( READLINE_LIBS CACHE )
 endif ( enable-readline )
 
-unset ( LASH_SUPPORT CACHE )
-if ( enable-lash )
-  pkg_check_modules ( LASH lash-1.0>=0.3 )
-  if ( LASH_FOUND )
-    set ( LASH_SUPPORT 1 )
-    add_definitions ( -DHAVE_LASH )
-  endif ( LASH_FOUND )
-else ( enable-lash )
-  unset_pkg_config ( LASH )
-  remove_definitions( -DHAVE_LASH )
-endif ( enable-lash )
-
-unset ( LADCCA_SUPPORT CACHE )
-if ( enable-ladcca )
-  pkg_check_modules ( LADCCA ladcca-1.0>=0.3 )
-  set ( LADCCA_SUPPORT ${LADCCA_FOUND} )
-else ( enable-ladcca )
-  unset_pkg_config ( LADCCA )
-endif ( enable-ladcca )
-
-unset ( DBUS_SUPPORT CACHE )
-if ( enable-dbus )
-  pkg_check_modules ( DBUS dbus-1>=1.0.0 )
-  set ( DBUS_SUPPORT ${DBUS_FOUND} )
-else ( enable-dbus )
-  unset_pkg_config ( DBUS )
-endif ( enable-dbus )
 
 # General configuration file
 configure_file ( ${CMAKE_SOURCE_DIR}/src/config.cmake
@@ -398,21 +442,21 @@ add_subdirectory ( src )
 add_subdirectory ( include )
 add_subdirectory ( doc )
 
+# pkg-config support
+set ( prefix "${CMAKE_INSTALL_PREFIX}" )
+set ( exec_prefix "\${prefix}" )
+set ( libdir "\${exec_prefix}/${LIB_INSTALL_DIR}${LIB_SUFFIX}" )
+set ( includedir "\${prefix}/${INCLUDE_INSTALL_DIR}" )
+configure_file ( fluidsynth.pc.in
+	${CMAKE_BINARY_DIR}/fluidsynth.pc IMMEDIATE @ONLY )
+install ( FILES ${CMAKE_BINARY_DIR}/fluidsynth.pc
+	DESTINATION ${LIB_INSTALL_DIR}${LIB_SUFFIX}/pkgconfig )
+
 # Extra targets for Unix build environments
 if ( UNIX )
     # RPM spec
     configure_file ( fluidsynth.spec.in
         ${CMAKE_BINARY_DIR}/fluidsynth.spec IMMEDIATE @ONLY )
-
-    # pkg-config support
-    set ( prefix "${CMAKE_INSTALL_PREFIX}" )
-    set ( exec_prefix "\${prefix}" )
-    set ( libdir "\${exec_prefix}/${LIB_INSTALL_DIR}${LIB_SUFFIX}" )
-    set ( includedir "\${prefix}/${INCLUDE_INSTALL_DIR}" )
-    configure_file ( fluidsynth.pc.in
-        ${CMAKE_BINARY_DIR}/fluidsynth.pc IMMEDIATE @ONLY )
-    install ( FILES ${CMAKE_BINARY_DIR}/fluidsynth.pc
-        DESTINATION ${LIB_INSTALL_DIR}${LIB_SUFFIX}/pkgconfig )
 
     # uninstall custom target
     configure_file ( "${CMAKE_SOURCE_DIR}/cmake_admin/cmake_uninstall.cmake.in"
@@ -428,7 +472,7 @@ if ( UNIX )
         COMMAND cp -r doc ${PACKAGE}-${VERSION}
         COMMAND cp -r include ${PACKAGE}-${VERSION}
         COMMAND cp -r src ${PACKAGE}-${VERSION}
-        COMMAND cp AUTHORS ChangeLog CMakeLists.txt COPYING ${PACKAGE}.* INSTALL NEWS README* THANKS TODO ${PACKAGE}-${VERSION}
+        COMMAND cp AUTHORS ChangeLog CMakeLists.txt ../LICENSE ${PACKAGE}.* INSTALL NEWS README* ../README.md THANKS TODO ${PACKAGE}-${VERSION}
 #       COMMAND tar -cj --exclude .svn --exclude Makefile.am -f ${PACKAGE}-${VERSION}.tar.bz2 ${PACKAGE}-${VERSION}
 #       COMMAND tar -cz --exclude .svn --exclude Makefile.am -f ${PACKAGE}-${VERSION}.tar.gz ${PACKAGE}-${VERSION}
 #       COMMAND zip -qr ${PACKAGE}-${VERSION}.zip ${PACKAGE}-${VERSION} -x '*.svn*' -x '*Makefile.am'
@@ -447,7 +491,7 @@ if ( UNIX )
         COMMAND cp -r doc ${PACKAGE}-${VERSION}
         COMMAND cp -r include ${PACKAGE}-${VERSION}
         COMMAND cp -r src ${PACKAGE}-${VERSION}
-        COMMAND cp AUTHORS ChangeLog CMakeLists.txt COPYING ${PACKAGE}.* INSTALL NEWS README* THANKS TODO ${PACKAGE}-${VERSION}
+        COMMAND cp AUTHORS ChangeLog CMakeLists.txt ../LICENSE ${PACKAGE}.* INSTALL NEWS README* ../README.md THANKS TODO ${PACKAGE}-${VERSION}
         COMMAND cp acinclude.m4 autogen.sh configure.ac install-sh missing mkinstalldirs Makefile.am ${PACKAGE}-${VERSION}
         # Files below are added when running autogen.sh
         # COMMAND cp -r autom4te.cache ${PACKAGE}-${VERSION}
@@ -467,8 +511,8 @@ include ( report )
 # CPack support
 set ( CPACK_PACKAGE_DESCRIPTION_SUMMARY "FluidSynth real-time synthesizer" )
 set ( CPACK_PACKAGE_VENDOR "fluidsynth.org" )
-set ( CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README" )
-set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/COPYING" )
+set ( CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README.md" )
+set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE" )
 set ( CPACK_PACKAGE_VERSION_MAJOR ${FLUIDSYNTH_VERSION_MAJOR} )
 set ( CPACK_PACKAGE_VERSION_MINOR ${FLUIDSYNTH_VERSION_MINOR} )
 set ( CPACK_PACKAGE_VERSION_PATCH ${FLUIDSYNTH_VERSION_MICRO} )

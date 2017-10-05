@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -25,9 +25,8 @@
 #include "fluid_chorus.h"
 #include "fluidsynth_priv.h"
 #include "fluid_ladspa.h"
+#include "fluid_synth.h"
 
-#define SYNTH_REVERB_CHANNEL 0
-#define SYNTH_CHORUS_CHANNEL 1
 
 #define ENABLE_MIXER_THREADS 1
 
@@ -563,7 +562,7 @@ new_fluid_rvoice_mixer(int buf_count, int fx_buf_count, fluid_real_t sample_rate
   mixer->thread_ready_m = new_fluid_cond_mutex();
   mixer->wakeup_threads_m = new_fluid_cond_mutex();
   if (!mixer->thread_ready || !mixer->wakeup_threads || 
-      !mixer->wakeup_threads_m || !mixer->wakeup_threads_m) {
+      !mixer->thread_ready_m || !mixer->wakeup_threads_m) {
     delete_fluid_rvoice_mixer(mixer);
     return NULL;
   }
@@ -619,7 +618,7 @@ fluid_mixer_buffers_free(fluid_mixer_buffers_t* buffers)
 
 void delete_fluid_rvoice_mixer(fluid_rvoice_mixer_t* mixer)
 {
-  if (!mixer) 
+  if (!mixer)
     return;
   fluid_rvoice_mixer_set_threads(mixer, 0, 0);
 #ifdef ENABLE_MIXER_THREADS
@@ -637,6 +636,7 @@ void delete_fluid_rvoice_mixer(fluid_rvoice_mixer_t* mixer)
     delete_fluid_revmodel(mixer->fx.reverb);
   if (mixer->fx.chorus)
     delete_fluid_chorus(mixer->fx.chorus);
+  FLUID_FREE(mixer->rvoices);
   FLUID_FREE(mixer);
 }
 
@@ -683,6 +683,16 @@ void fluid_rvoice_mixer_reset_fx(fluid_rvoice_mixer_t* mixer)
   fluid_chorus_reset(mixer->fx.chorus);
 }
 
+void fluid_rvoice_mixer_reset_reverb(fluid_rvoice_mixer_t* mixer)
+{
+  fluid_revmodel_reset(mixer->fx.reverb);
+}
+
+void fluid_rvoice_mixer_reset_chorus(fluid_rvoice_mixer_t* mixer)
+{
+  fluid_chorus_reset(mixer->fx.chorus);
+}
+
 int fluid_rvoice_mixer_get_bufs(fluid_rvoice_mixer_t* mixer, 
 				  fluid_real_t*** left, fluid_real_t*** right)
 {
@@ -691,6 +701,18 @@ int fluid_rvoice_mixer_get_bufs(fluid_rvoice_mixer_t* mixer,
   return mixer->buffers.buf_count;
 }
 
+int fluid_rvoice_mixer_get_fx_bufs(fluid_rvoice_mixer_t* mixer, 
+                  fluid_real_t*** fx_left, fluid_real_t*** fx_right)
+{
+  *fx_left = mixer->buffers.fx_left_buf;
+  *fx_right = mixer->buffers.fx_right_buf;
+  return mixer->buffers.fx_buf_count;
+}
+
+int fluid_rvoice_mixer_get_bufcount(fluid_rvoice_mixer_t* mixer)
+{
+    return mixer->buffers.buf_blocks;
+}
 
 #ifdef ENABLE_MIXER_THREADS
 
@@ -876,6 +898,7 @@ fluid_rvoice_mixer_set_threads(fluid_rvoice_mixer_t* mixer, int thread_count,
   			       int prio_level)
 {
 #ifdef ENABLE_MIXER_THREADS
+  char name[16];
   int i;
  
   // Kill all existing threads first
@@ -917,7 +940,8 @@ fluid_rvoice_mixer_set_threads(fluid_rvoice_mixer_t* mixer, int thread_count,
     if (!fluid_mixer_buffers_init(b, mixer))
       return;
     fluid_atomic_int_set(&b->ready, THREAD_BUF_NODATA);
-    b->thread = new_fluid_thread(fluid_mixer_thread_func, b, prio_level, 0);
+    g_snprintf (name, sizeof (name), "mixer%d", i);
+    b->thread = new_fluid_thread(name, fluid_mixer_thread_func, b, prio_level, 0);
     if (!b->thread)
       return;
   }

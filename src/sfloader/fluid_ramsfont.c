@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -98,6 +98,7 @@ fluid_ramsfont_create_sfont()
   sfont = FLUID_NEW(fluid_sfont_t);
   if (sfont == NULL) {
     FLUID_LOG(FLUID_ERR, "Out of memory");
+    delete_fluid_ramsfont(ramsfont);
     return NULL;
   }
 
@@ -368,6 +369,7 @@ fluid_ramsfont_add_izone(fluid_ramsfont_t* sfont, unsigned int bank,
 
 		err = fluid_rampreset_add_sample(preset, sample, lokey, hikey);
 		if (err != FLUID_OK) {
+			delete_fluid_rampreset(preset);
 			return FLUID_FAILED;
 		}
 
@@ -889,7 +891,7 @@ fluid_rampreset_noteon (fluid_rampreset_t* preset, fluid_synth_t* synth, int cha
 {
   fluid_preset_zone_t *preset_zone;
   fluid_inst_t* inst;
-  fluid_inst_zone_t *inst_zone, *global_inst_zone, *z;
+  fluid_inst_zone_t *inst_zone, *global_inst_zone;
   fluid_sample_t* sample;
   fluid_voice_t* voice;
   fluid_mod_t * mod;
@@ -914,7 +916,7 @@ fluid_rampreset_noteon (fluid_rampreset_t* preset, fluid_synth_t* synth, int cha
 
 	/* make sure this instrument zone has a valid sample */
 	sample = fluid_inst_zone_get_sample(inst_zone);
-	if (fluid_sample_in_rom(sample) || (sample == NULL)) {
+	if ((sample == NULL) || fluid_sample_in_rom(sample)) {
 	  inst_zone = fluid_inst_zone_next(inst_zone);
 	  continue;
 	}
@@ -935,8 +937,6 @@ fluid_rampreset_noteon (fluid_rampreset_t* preset, fluid_synth_t* synth, int cha
 	  if (fluid_rampreset_remembervoice(preset, voice) != FLUID_OK) {
 	    return FLUID_FAILED;
 	  }
-
-	  z = inst_zone;
 
 	  /* Instrument level, generators */
 

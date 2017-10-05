@@ -6,16 +6,16 @@
  * Copyright (C) 1999-2001 Josh Green
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -26,12 +26,16 @@
 /* Todo: Get rid of that 'include' */
 #include "fluid_sys.h"
 
+#if LIBSNDFILE_SUPPORT
+#include <sndfile.h>
+#endif
+
 /***************************************************************
  *
  *                           SFONT LOADER
  */
 
-fluid_sfloader_t* new_fluid_defsfloader()
+fluid_sfloader_t* new_fluid_defsfloader(fluid_settings_t* settings)
 {
   fluid_sfloader_t* loader;
 
@@ -41,7 +45,7 @@ fluid_sfloader_t* new_fluid_defsfloader()
     return NULL;
   }
 
-  loader->data = NULL;
+  loader->data = settings;
   loader->free = delete_fluid_defsfloader;
   loader->load = fluid_defsfloader_load;
 
@@ -61,7 +65,7 @@ fluid_sfont_t* fluid_defsfloader_load(fluid_sfloader_t* loader, const char* file
   fluid_defsfont_t* defsfont;
   fluid_sfont_t* sfont;
 
-  defsfont = new_fluid_defsfont();
+  defsfont = new_fluid_defsfont(loader->data);
 
   if (defsfont == NULL) {
     return NULL;
@@ -118,17 +122,23 @@ fluid_sample_t* fluid_defsfont_get_sample(fluid_defsfont_t* sfont, char *s)
 fluid_preset_t*
 fluid_defsfont_sfont_get_preset(fluid_sfont_t* sfont, unsigned int bank, unsigned int prenum)
 {
-  fluid_preset_t* preset;
+  fluid_preset_t* preset = NULL;
   fluid_defpreset_t* defpreset;
+  fluid_defsfont_t* defsfont = sfont->data;
 
-  defpreset = fluid_defsfont_get_preset((fluid_defsfont_t*) sfont->data, bank, prenum);
+  defpreset = fluid_defsfont_get_preset(defsfont, bank, prenum);
 
   if (defpreset == NULL) {
     return NULL;
   }
 
-  preset = FLUID_NEW(fluid_preset_t);
-  if (preset == NULL) {
+  if (defsfont->preset_stack_size > 0) {
+    defsfont->preset_stack_size--;
+    preset = defsfont->preset_stack[defsfont->preset_stack_size];
+  }
+  if (!preset)
+    preset = FLUID_NEW(fluid_preset_t);
+  if (!preset) {
     FLUID_LOG(FLUID_ERR, "Out of memory");
     return NULL;
   }
@@ -164,9 +174,15 @@ int fluid_defsfont_sfont_iteration_next(fluid_sfont_t* sfont, fluid_preset_t* pr
 
 int fluid_defpreset_preset_delete(fluid_preset_t* preset)
 {
-  FLUID_FREE(preset);
+  fluid_defpreset_t* defpreset = preset ? preset->data : NULL;
+  fluid_defsfont_t* sfont = defpreset ? defpreset->sfont : NULL;
 
-  /* TODO: free modulators */
+  if (sfont && sfont->preset_stack_size < sfont->preset_stack_capacity) {
+     sfont->preset_stack[sfont->preset_stack_size] = preset;
+     sfont->preset_stack_size++;
+  }
+  else
+    FLUID_FREE(preset);
 
   return 0;
 }
@@ -197,15 +213,239 @@ int fluid_defpreset_preset_noteon(fluid_preset_t* preset, fluid_synth_t* synth,
 
 /***************************************************************
  *
+ *                    CACHED SAMPLEDATA LOADER
+ */
+
+typedef struct _fluid_cached_sampledata_t {
+  struct _fluid_cached_sampledata_t *next;
+
+  char* filename;
+  time_t modification_time;
+  int num_references;
+  int mlock;
+
+  const short* sampledata;
+  unsigned int samplesize;
+} fluid_cached_sampledata_t;
+
+static fluid_cached_sampledata_t* all_cached_sampledata = NULL;
+static fluid_mutex_t cached_sampledata_mutex = FLUID_MUTEX_INIT;
+
+static int fluid_get_file_modification_time(char *filename, time_t *modification_time)
+{
+#if defined(WIN32) || defined(__OS2__)
+  *modification_time = 0;
+  return FLUID_OK;
+#else
+  struct stat buf;
+
+  if (stat(filename, &buf) == -1) {
+    return FLUID_FAILED;
+  }
+
+  *modification_time = buf.st_mtime;
+  return FLUID_OK;
+#endif
+}
+
+static int fluid_cached_sampledata_load(char *filename, unsigned int samplepos,
+  unsigned int samplesize, short **sampledata, int try_mlock)
+{
+  fluid_file fd = NULL;
+  short *loaded_sampledata = NULL;
+  fluid_cached_sampledata_t* cached_sampledata = NULL;
+  time_t modification_time;
+
+  fluid_mutex_lock(cached_sampledata_mutex);
+
+  if (fluid_get_file_modification_time(filename, &modification_time) == FLUID_FAILED) {
+    FLUID_LOG(FLUID_WARN, "Unable to read modificaton time of soundfont file.");
+    modification_time = 0;
+  }
+
+  for (cached_sampledata = all_cached_sampledata; cached_sampledata; cached_sampledata = cached_sampledata->next) {
+    if (strcmp(filename, cached_sampledata->filename))
+      continue;
+    if (cached_sampledata->modification_time != modification_time)
+      continue;
+    if (cached_sampledata->samplesize != samplesize) {
+      FLUID_LOG(FLUID_ERR, "Cached size of soundfont doesn't match actual size of soundfont (cached: %u. actual: %u)",
+        cached_sampledata->samplesize, samplesize);
+      continue;
+    }
+
+    if (try_mlock && !cached_sampledata->mlock) {
+      if (fluid_mlock(cached_sampledata->sampledata, samplesize) != 0)
+        FLUID_LOG(FLUID_WARN, "Failed to pin the sample data to RAM; swapping is possible.");
+      else
+        cached_sampledata->mlock = try_mlock;
+    }
+
+    cached_sampledata->num_references++;
+    loaded_sampledata = (short*) cached_sampledata->sampledata;
+    goto success_exit;
+  }
+
+  fd = FLUID_FOPEN(filename, "rb");
+  if (fd == NULL) {
+    FLUID_LOG(FLUID_ERR, "Can't open soundfont file");
+    goto error_exit;
+  }
+  if (FLUID_FSEEK(fd, samplepos, SEEK_SET) == -1) {
+    perror("error");
+    FLUID_LOG(FLUID_ERR, "Failed to seek position in data file");
+    goto error_exit;
+  }
+
+
+  loaded_sampledata = (short*) FLUID_MALLOC(samplesize);
+  if (loaded_sampledata == NULL) {
+    FLUID_LOG(FLUID_ERR, "Out of memory");
+    goto error_exit;
+  }
+  if (FLUID_FREAD(loaded_sampledata, 1, samplesize, fd) < samplesize) {
+    FLUID_LOG(FLUID_ERR, "Failed to read sample data");
+    goto error_exit;
+  }
+
+  FLUID_FCLOSE(fd);
+  fd = NULL;
+
+
+  cached_sampledata = (fluid_cached_sampledata_t*) FLUID_MALLOC(sizeof(fluid_cached_sampledata_t));
+  if (cached_sampledata == NULL) {
+    FLUID_LOG(FLUID_ERR, "Out of memory.");
+    goto error_exit;
+  }
+
+  /* Lock the memory to disable paging. It's okay if this fails. It
+     probably means that the user doesn't have to required permission.  */
+  cached_sampledata->mlock = 0;
+  if (try_mlock) {
+    if (fluid_mlock(loaded_sampledata, samplesize) != 0)
+      FLUID_LOG(FLUID_WARN, "Failed to pin the sample data to RAM; swapping is possible.");
+    else
+      cached_sampledata->mlock = try_mlock;
+  }
+
+  /* If this machine is big endian, the sample have to byte swapped  */
+  if (FLUID_IS_BIG_ENDIAN) {
+    unsigned char* cbuf;
+    unsigned char hi, lo;
+    unsigned int i, j;
+    short s;
+    cbuf = (unsigned char*)loaded_sampledata;
+    for (i = 0, j = 0; j < samplesize; i++) {
+      lo = cbuf[j++];
+      hi = cbuf[j++];
+      s = (hi << 8) | lo;
+      loaded_sampledata[i] = s;
+    }
+  }
+
+  cached_sampledata->filename = (char*) FLUID_MALLOC(strlen(filename) + 1);
+  if (cached_sampledata->filename == NULL) {
+    FLUID_LOG(FLUID_ERR, "Out of memory.");
+    goto error_exit;
+  }
+
+  sprintf(cached_sampledata->filename, "%s", filename);
+  cached_sampledata->modification_time = modification_time;
+  cached_sampledata->num_references = 1;
+  cached_sampledata->sampledata = loaded_sampledata;
+  cached_sampledata->samplesize = samplesize;
+
+  cached_sampledata->next = all_cached_sampledata;
+  all_cached_sampledata = cached_sampledata;
+
+
+ success_exit:
+  fluid_mutex_unlock(cached_sampledata_mutex);
+  *sampledata = loaded_sampledata;
+  return FLUID_OK;
+
+ error_exit:
+  if (fd != NULL) {
+    FLUID_FCLOSE(fd);
+  }
+  if (loaded_sampledata != NULL) {
+    FLUID_FREE(loaded_sampledata);
+  }
+
+  if (cached_sampledata != NULL) {
+    if (cached_sampledata->filename != NULL) {
+      FLUID_FREE(cached_sampledata->filename);
+    }
+    FLUID_FREE(cached_sampledata);
+  }
+
+  fluid_mutex_unlock(cached_sampledata_mutex);
+  *sampledata = NULL;
+  return FLUID_FAILED;
+}
+
+static int fluid_cached_sampledata_unload(const short *sampledata)
+{
+  fluid_cached_sampledata_t* prev = NULL;
+  fluid_cached_sampledata_t* cached_sampledata;
+
+  fluid_mutex_lock(cached_sampledata_mutex);
+  cached_sampledata = all_cached_sampledata;
+
+  while (cached_sampledata != NULL) {
+    if (sampledata == cached_sampledata->sampledata) {
+
+      cached_sampledata->num_references--;
+
+      if (cached_sampledata->num_references == 0) {
+        if (cached_sampledata->mlock)
+          fluid_munlock(cached_sampledata->sampledata, cached_sampledata->samplesize);
+        FLUID_FREE((short*) cached_sampledata->sampledata);
+        FLUID_FREE(cached_sampledata->filename);
+
+        if (prev != NULL) {
+          prev->next = cached_sampledata->next;
+        } else {
+          all_cached_sampledata = cached_sampledata->next;
+        }
+
+        FLUID_FREE(cached_sampledata);
+      }
+
+      goto success_exit;
+    }
+
+    prev = cached_sampledata;
+    cached_sampledata = cached_sampledata->next;
+  }
+
+  FLUID_LOG(FLUID_ERR, "Trying to free sampledata not found in cache.");
+  goto error_exit;
+  
+ success_exit:
+  fluid_mutex_unlock(cached_sampledata_mutex);
+  return FLUID_OK;
+
+ error_exit:
+  fluid_mutex_unlock(cached_sampledata_mutex);
+  return FLUID_FAILED;
+}
+
+
+
+
+/***************************************************************
+ *
  *                           SFONT
  */
 
 /*
  * new_fluid_defsfont
  */
-fluid_defsfont_t* new_fluid_defsfont()
+fluid_defsfont_t* new_fluid_defsfont(fluid_settings_t* settings)
 {
   fluid_defsfont_t* sfont;
+  int i;
 
   sfont = FLUID_NEW(fluid_defsfont_t);
   if (sfont == NULL) {
@@ -219,6 +459,30 @@ fluid_defsfont_t* new_fluid_defsfont()
   sfont->sample = NULL;
   sfont->sampledata = NULL;
   sfont->preset = NULL;
+  fluid_settings_getint(settings, "synth.lock-memory", &sfont->mlock);
+
+  /* Initialise preset cache, so we don't have to call malloc on program changes.
+     Usually, we have at most one preset per channel plus one temporarily used,
+     so optimise for that case. */
+  fluid_settings_getint(settings, "synth.midi-channels", &sfont->preset_stack_capacity);
+  sfont->preset_stack_capacity++;
+  sfont->preset_stack_size = 0;
+  sfont->preset_stack = FLUID_ARRAY(fluid_preset_t*, sfont->preset_stack_capacity);
+  if (!sfont->preset_stack) {
+    FLUID_LOG(FLUID_ERR, "Out of memory");
+    FLUID_FREE(sfont);
+    return NULL;
+  }
+
+  for (i = 0; i < sfont->preset_stack_capacity; i++) {
+    sfont->preset_stack[i] = FLUID_NEW(fluid_preset_t);
+    if (!sfont->preset_stack[i]) {
+      FLUID_LOG(FLUID_ERR, "Out of memory");
+      delete_fluid_defsfont(sfont);
+      return NULL;
+    }
+    sfont->preset_stack_size++;
+  }
 
   return sfont;
 }
@@ -253,9 +517,12 @@ int delete_fluid_defsfont(fluid_defsfont_t* sfont)
   }
 
   if (sfont->sampledata != NULL) {
-    fluid_munlock(sfont->sampledata, sfont->samplesize);
-    FLUID_FREE(sfont->sampledata);
+    fluid_cached_sampledata_unload(sfont->sampledata);
   }
+
+  while (sfont->preset_stack_size > 0)
+    FLUID_FREE(sfont->preset_stack[--sfont->preset_stack_size]);
+  FLUID_FREE(sfont->preset_stack);
 
   preset = sfont->preset;
   while (preset != NULL) {
@@ -287,7 +554,7 @@ int fluid_defsfont_load(fluid_defsfont_t* sfont, const char* file)
   SFPreset* sfpreset;
   SFSample* sfsample;
   fluid_sample_t* sample;
-  fluid_defpreset_t* preset;
+  fluid_defpreset_t* preset = NULL;
 
   sfont->filename = FLUID_MALLOC(1 + FLUID_STRLEN(file));
   if (sfont->filename == NULL) {
@@ -350,6 +617,8 @@ int fluid_defsfont_load(fluid_defsfont_t* sfont, const char* file)
 
 err_exit:
   sfont_close (sfdata);
+  if (preset != NULL)
+    delete_fluid_defpreset(preset);
   return FLUID_FAILED;
 }
 
@@ -404,54 +673,8 @@ int fluid_defsfont_add_preset(fluid_defsfont_t* sfont, fluid_defpreset_t* preset
 int
 fluid_defsfont_load_sampledata(fluid_defsfont_t* sfont)
 {
-  fluid_file fd;
-  unsigned short endian;
-  fd = FLUID_FOPEN(sfont->filename, "rb");
-  if (fd == NULL) {
-    FLUID_LOG(FLUID_ERR, "Can't open soundfont file");
-    return FLUID_FAILED;
-  }
-  if (FLUID_FSEEK(fd, sfont->samplepos, SEEK_SET) == -1) {
-    perror("error");
-    FLUID_LOG(FLUID_ERR, "Failed to seek position in data file");
-    return FLUID_FAILED;
-  }
-  sfont->sampledata = (short*) FLUID_MALLOC(sfont->samplesize);
-  if (sfont->sampledata == NULL) {
-    FLUID_LOG(FLUID_ERR, "Out of memory");
-    return FLUID_FAILED;
-  }
-  if (FLUID_FREAD(sfont->sampledata, 1, sfont->samplesize, fd) < sfont->samplesize) {
-    FLUID_LOG(FLUID_ERR, "Failed to read sample data");
-    return FLUID_FAILED;
-  }
-  FLUID_FCLOSE(fd);
-
-  /* Lock the memory to disable paging. It's okay if this fails. It
-     probably means that the user doesn't have to required permission.  */
-  if (fluid_mlock(sfont->sampledata, sfont->samplesize) != 0) {
-    FLUID_LOG(FLUID_WARN, "Failed to pin the sample data to RAM; swapping is possible.");
-  }
-
-
-  /* I'm not sure this endian test is waterproof...  */
-  endian = 0x0100;
-
-  /* If this machine is big endian, the sample have to byte swapped  */
-  if (((char *) &endian)[0]) {
-    unsigned char* cbuf;
-    unsigned char hi, lo;
-    unsigned int i, j;
-    short s;
-    cbuf = (unsigned char*) sfont->sampledata;
-    for (i = 0, j = 0; j < sfont->samplesize; i++) {
-      lo = cbuf[j++];
-      hi = cbuf[j++];
-      s = (hi << 8) | lo;
-      sfont->sampledata[i] = s;
-    }
-  }
-  return FLUID_OK;
+  return fluid_cached_sampledata_load(sfont->filename, sfont->samplepos,
+    sfont->samplesize, &sfont->sampledata, sfont->mlock);
 }
 
 /*
@@ -579,7 +802,7 @@ fluid_defpreset_noteon(fluid_defpreset_t* preset, fluid_synth_t* synth, int chan
 {
   fluid_preset_zone_t *preset_zone, *global_preset_zone;
   fluid_inst_t* inst;
-  fluid_inst_zone_t *inst_zone, *global_inst_zone, *z;
+  fluid_inst_zone_t *inst_zone, *global_inst_zone;
   fluid_sample_t* sample;
   fluid_voice_t* voice;
   fluid_mod_t * mod;
@@ -606,7 +829,7 @@ fluid_defpreset_noteon(fluid_defpreset_t* preset, fluid_synth_t* synth, int chan
 
 	/* make sure this instrument zone has a valid sample */
 	sample = fluid_inst_zone_get_sample(inst_zone);
-	if (fluid_sample_in_rom(sample) || (sample == NULL)) {
+	if ((sample == NULL) || fluid_sample_in_rom(sample)) {
 	  inst_zone = fluid_inst_zone_next(inst_zone);
 	  continue;
 	}
@@ -624,8 +847,6 @@ fluid_defpreset_noteon(fluid_defpreset_t* preset, fluid_synth_t* synth, int chan
 	    return FLUID_FAILED;
 	  }
 
-
-	  z = inst_zone;
 
 	  /* Instrument level, generators */
 
@@ -822,10 +1043,10 @@ fluid_defpreset_import_sfont(fluid_defpreset_t* preset,
   fluid_preset_zone_t* zone;
   int count;
   char zone_name[256];
-  if ((sfpreset->name != NULL) && (FLUID_STRLEN(sfpreset->name) > 0)) {
+  if (FLUID_STRLEN(sfpreset->name) > 0) {
     FLUID_STRCPY(preset->name, sfpreset->name);
   } else {
-    FLUID_SPRINTF(preset->name, "Bank%d,Preset%d", sfpreset->bank, sfpreset->prenum);
+    FLUID_SPRINTF(preset->name, "Bank%d,Pre%d", sfpreset->bank, sfpreset->prenum);
   }
   preset->bank = sfpreset->bank;
   preset->num = sfpreset->prenum;
@@ -839,6 +1060,7 @@ fluid_defpreset_import_sfont(fluid_defpreset_t* preset,
       return FLUID_FAILED;
     }
     if (fluid_preset_zone_import_sfont(zone, sfzone, sfont) != FLUID_OK) {
+      delete_fluid_preset_zone(zone);
       return FLUID_FAILED;
     }
     if ((count == 0) && (fluid_preset_zone_get_inst(zone) == NULL)) {
@@ -1222,7 +1444,7 @@ fluid_inst_import_sfont(fluid_inst_t* inst, SFInst *sfinst, fluid_defsfont_t* sf
   int count;
 
   p = sfinst->zone;
-  if ((sfinst->name != NULL) && (FLUID_STRLEN(sfinst->name) > 0)) {
+  if (FLUID_STRLEN(sfinst->name) > 0) {
     FLUID_STRCPY(inst->name, sfinst->name);
   } else {
     FLUID_STRCPY(inst->name, "<untitled>");
@@ -1240,6 +1462,7 @@ fluid_inst_import_sfont(fluid_inst_t* inst, SFInst *sfinst, fluid_defsfont_t* sf
     }
 
     if (fluid_inst_zone_import_sfont(zone, sfzone, sfont) != FLUID_OK) {
+      delete_fluid_inst_zone(zone);
       return FLUID_FAILED;
     }
 
@@ -1582,6 +1805,14 @@ new_fluid_sample()
 int
 delete_fluid_sample(fluid_sample_t* sample)
 {
+  if (sample->sampletype & FLUID_SAMPLETYPE_OGG_VORBIS)
+  {
+#if LIBSNDFILE_SUPPORT
+    if (sample->data)
+      FLUID_FREE(sample->data);
+#endif
+  }
+
   FLUID_FREE(sample);
   return FLUID_OK;
 }
@@ -1598,6 +1829,62 @@ fluid_sample_in_rom(fluid_sample_t* sample)
 /*
  * fluid_sample_import_sfont
  */
+#if LIBSNDFILE_SUPPORT
+// virtual file access rountines to allow for handling
+// samples as virtual files in memory
+static sf_count_t
+sfvio_get_filelen(void* user_data)
+{
+  fluid_sample_t *sample = (fluid_sample_t *)user_data;
+
+  return (sf_count_t)(sample->end + 1 - sample->start);
+}
+
+static sf_count_t
+sfvio_seek(sf_count_t offset, int whence, void* user_data)
+{
+  fluid_sample_t *sample = (fluid_sample_t *)user_data;
+
+  switch (whence)
+  {
+    case SEEK_SET:
+      sample->userdata = (void *)offset;
+      break;
+    case SEEK_CUR:
+      sample->userdata = (void *)((sf_count_t)sample->userdata + offset);
+      break;
+    case SEEK_END:
+      sample->userdata = (void *)(sfvio_get_filelen(user_data) + offset);
+      break;
+  }
+
+  return (sf_count_t)sample->userdata;
+}
+
+static sf_count_t
+sfvio_read(void* ptr, sf_count_t count, void* user_data)
+{
+  fluid_sample_t *sample = (fluid_sample_t *)user_data;
+  sf_count_t remain = sfvio_get_filelen(user_data) - (sf_count_t)sample->userdata;
+  
+  if (count > remain)
+      count = remain;
+
+  memcpy(ptr, (char *)sample->data + sample->start + (sf_count_t)sample->userdata, count);
+  sample->userdata = (void *)((sf_count_t)sample->userdata + count);
+
+  return count;
+}
+
+static sf_count_t
+sfvio_tell (void* user_data)
+{
+  fluid_sample_t *sample = (fluid_sample_t *)user_data;
+
+  return (sf_count_t)sample->userdata;
+}
+#endif
+
 int
 fluid_sample_import_sfont(fluid_sample_t* sample, SFSample* sfsample, fluid_defsfont_t* sfont)
 {
@@ -1612,13 +1899,104 @@ fluid_sample_import_sfont(fluid_sample_t* sample, SFSample* sfsample, fluid_defs
   sample->pitchadj = sfsample->pitchadj;
   sample->sampletype = sfsample->sampletype;
 
+  if (sample->sampletype & FLUID_SAMPLETYPE_OGG_VORBIS)
+  {
+#if LIBSNDFILE_SUPPORT
+    SNDFILE *sndfile;
+    SF_INFO sfinfo;
+    SF_VIRTUAL_IO sfvio = {
+      sfvio_get_filelen,
+      sfvio_seek,
+      sfvio_read,
+      NULL,
+      sfvio_tell
+    };
+    short *sampledata_ogg;
+    int inv_loop = FALSE;
+
+    // initialize file position indicator and SF_INFO structure
+    g_assert(sample->userdata == NULL);
+    memset(&sfinfo, 0, sizeof(sfinfo));
+
+    // open sample as a virtual file in memory
+    sndfile = sf_open_virtual(&sfvio, SFM_READ, &sfinfo, sample);
+    if (!sndfile)
+    {
+      FLUID_LOG(FLUID_ERR, sf_strerror(sndfile));
+      return FLUID_FAILED;
+    }
+
+    // empty sample
+    if (!sfinfo.frames || !sfinfo.channels)
+    {
+      sample->start = sample->end =
+      sample->loopstart = sample->loopend =
+      sample->valid = 0;
+      sample->data = NULL;
+      sf_close(sndfile);
+      return FLUID_OK;
+    }
+
+    // allocate memory for uncompressed sample data stream
+    sampledata_ogg = (short *)FLUID_MALLOC(sfinfo.frames * sfinfo.channels * sizeof(short));
+    if (!sampledata_ogg)
+    {
+      FLUID_LOG(FLUID_ERR, "Out of memory");
+      sf_close(sndfile);
+      return FLUID_FAILED;
+    }
+
+    // uncompress sample data stream
+    if (sf_readf_short(sndfile, sampledata_ogg, sfinfo.frames) < sfinfo.frames)
+    {
+      FLUID_FREE(sampledata_ogg);
+      FLUID_LOG(FLUID_ERR, sf_strerror(sndfile));
+      sf_close(sndfile);
+      return FLUID_FAILED;
+    }
+    sf_close(sndfile);
+
+    // point sample data to uncompressed data stream
+    sample->data = sampledata_ogg;
+    sample->start = 0;
+    sample->end = sfinfo.frames - 1;
+
+    /* loop is fowled?? (cluck cluck :) */
+    if (sample->loopend-1 > sample->end /* loopend may point one sample after valid sample data, as this one will never be played */
+        || sample->loopstart >= sample->loopend)
+    {
+        FLUID_LOG (FLUID_DBG, _("Vorbis sample '%s' has unusable loop stop '%d',"
+        " setting to sample end '%d'+1"), sample->name, sample->loopend, sample->end);
+        
+        /* though illegal, loopend may be set to loopstart to disable loop */
+        /* is it worth informing the user? */
+        inv_loop |= (sample->loopend != sample->loopstart);
+        sample->loopend = sample->end+1;
+    }
+    
+    if(sample->loopstart < sample->start
+       || sample->loopstart >= sample->loopend)
+    {
+        FLUID_LOG (FLUID_DBG, _("Vorbis sample '%s' has unusable loop start '%d',"
+        " setting to sample start '%d'"), sample->name, sample->loopstart, sample->start);
+        sample->loopstart = sample->start;
+        inv_loop |= TRUE;
+    }
+    
+    if(inv_loop)
+    {
+        FLUID_LOG (FLUID_WARN, _("Vorbis sample '%s' has invalid loop points"), sample->name);
+    }
+#endif
+  }
+
   if (sample->sampletype & FLUID_SAMPLETYPE_ROM) {
     sample->valid = 0;
-    FLUID_LOG(FLUID_WARN, "Ignoring sample %s: can't use ROM samples", sample->name);
+    FLUID_LOG(FLUID_WARN, "Ignoring sample '%s': can't use ROM samples", sample->name);
   }
   if (sample->end - sample->start < 8) {
     sample->valid = 0;
-    FLUID_LOG(FLUID_WARN, "Ignoring sample %s: too few sample data points", sample->name);
+    FLUID_LOG(FLUID_WARN, "Ignoring sample '%s': too few sample data points", sample->name);
   } else {
 /*      if (sample->loopstart < sample->start + 8) { */
 /*        FLUID_LOG(FLUID_WARN, "Fixing sample %s: at least 8 data points required before loop start", sample->name);     */
@@ -1793,6 +2171,7 @@ sfload_file (const char * fname)
   if (!(sf = FLUID_NEW (SFData)))
     {
       FLUID_LOG(FLUID_ERR, "Out of memory");
+      fclose(fd);
       err = TRUE;
     }
 
@@ -1937,10 +2316,20 @@ process_info (int size, SFData * sf, FILE * fd)
 	    return (FAIL);
 	  }
 
-	  if (sf->version.major > 2) {
+	  if (sf->version.major == 3) {
+#if !LIBSNDFILE_SUPPORT
+	    FLUID_LOG (FLUID_WARN,
+		      _("Sound font version is %d.%d but fluidsynth was compiled without"
+			" support for (v3.x)"),
+		      sf->version.major,
+		      sf->version.minor);
+	    return (FAIL);
+#endif
+	  }
+	  else if (sf->version.major > 2) {
 	    FLUID_LOG (FLUID_WARN,
 		      _("Sound font version is %d.%d which is newer than"
-			" what this version of FLUID Synth was designed for (v2.0x)"),
+			" what this version of fluidsynth was designed for (v2.0x)"),
 		      sf->version.major,
 		      sf->version.minor);
 	    return (FAIL);
@@ -2939,40 +3328,77 @@ fixup_sample (SFData * sf)
 {
   fluid_list_t *p;
   SFSample *sam;
+  int invalid_loops=FALSE;
+  int invalid_loopstart;
+  int invalid_loopend, loopend_end_mismatch;
 
   p = sf->sample;
   while (p)
     {
       sam = (SFSample *) (p->data);
-
+      
+      /* The SoundFont 2.4 spec defines the loopstart index as the first sample point of the loop */
+      invalid_loopstart = (sam->loopstart < sam->start) || (sam->loopstart >= sam->loopend);
+      /* while loopend is the first point AFTER the last sample of the loop.
+       * this is as it should be. however we cannot be sure whether any of sam.loopend or sam.end
+       * is correct. hours of thinking through this have concluded, that it would be best practice 
+       * to mangle with loops as little as necessary by only making sure loopend is within
+       * sdtachunk_size. incorrect soundfont shall preferably fail loudly. */
+      invalid_loopend = (sam->loopend > sdtachunk_size) || (sam->loopstart >= sam->loopend);
+      
+      loopend_end_mismatch = (sam->loopend > sam->end);
+	  
       /* if sample is not a ROM sample and end is over the sample data chunk
          or sam start is greater than 4 less than the end (at least 4 samples) */
-      if ((!(sam->sampletype & FLUID_SAMPLETYPE_ROM)
-	  && sam->end > sdtachunk_size) || sam->start > (sam->end - 4))
-	{
-	  FLUID_LOG (FLUID_WARN, _("Sample '%s' start/end file positions are invalid,"
-	      " disabling and will not be saved"), sam->name);
+      if ((!(sam->sampletype & FLUID_SAMPLETYPE_ROM) && sam->end > sdtachunk_size)
+          || sam->start > (sam->end - 4))
+      {
+          FLUID_LOG (FLUID_WARN, _("Sample '%s' start/end file positions are invalid,"
+          " disabling and will not be saved"), sam->name);
 
-	  /* disable sample by setting all sample markers to 0 */
-	  sam->start = sam->end = sam->loopstart = sam->loopend = 0;
+	        /* disable sample by setting all sample markers to 0 */
+	        sam->start = sam->end = sam->loopstart = sam->loopend = 0;
 
-	  return (OK);
-	}
-      else if (sam->loopend > sam->end || sam->loopstart >= sam->loopend
-	|| sam->loopstart <= sam->start)
-	{			/* loop is fowled?? (cluck cluck :) */
-	  /* can pad loop by 8 samples and ensure at least 4 for loop (2*8+4) */
-	  if ((sam->end - sam->start) >= 20)
+	        return (OK);
+	    }
+      else if (sam->sampletype & FLUID_SAMPLETYPE_OGG_VORBIS)
 	    {
-	      sam->loopstart = sam->start + 8;
-	      sam->loopend = sam->end - 8;
+            /*
+             * compressed samples get fixed up after decompression
+             * 
+             * however we cant use the logic below, because uncompressed samples are stored in individual buffers
+             */
+        }
+      else if (invalid_loopstart || invalid_loopend || loopend_end_mismatch) /* loop is fowled?? (cluck cluck :) */
+	    {
+            /* though illegal, loopend may be set to loopstart to disable loop */
+            /* is it worth informing the user? */
+            invalid_loops |= (sam->loopend != sam->loopstart);
+	  
+	        /* force incorrect loop points into the sample range, ignore padding */
+          if(invalid_loopstart)
+          {
+            FLUID_LOG (FLUID_DBG, _("Sample '%s' has unusable loop start '%d',"
+              " setting to sample start at '%d'"), sam->name, sam->loopstart, sam->start);
+            sam->loopstart = sam->start;
+	        }
+          
+          if(invalid_loopend)
+	        {
+            FLUID_LOG (FLUID_DBG, _("Sample '%s' has unusable loop stop '%d',"
+              " setting to sample stop at '%d'"), sam->name, sam->loopend, sam->end);
+            /* since at this time sam->end points after valid sample data (will correct that few lines below),
+             * set loopend to that first invalid sample, since it should never be played, but instead the last
+             * valid sample will be played */
+            sam->loopend = sam->end;
+	        }
+	  
+          if(loopend_end_mismatch)
+	        {
+            FLUID_LOG (FLUID_DBG, _("Sample '%s' has invalid loop stop '%d',"
+              " sample stop at '%d', using it anyway"), sam->name, sam->loopend, sam->end);
+	        }
 	    }
-	  else
-	    {			/* loop is fowled, sample is tiny (can't pad 8 samples) */
-	      sam->loopstart = sam->start + 1;
-	      sam->loopend = sam->end - 1;
-	    }
-	}
 
       /* convert sample end, loopstart, loopend to offsets from sam->start */
       sam->end -= sam->start + 1;	/* marks last sample, contrary to SF spec. */
@@ -2980,6 +3406,11 @@ fixup_sample (SFData * sf)
       sam->loopend -= sam->start;
 
       p = fluid_list_next (p);
+    }
+
+    if(invalid_loops)
+    {
+      FLUID_LOG (FLUID_WARN, _("Found samples with invalid loops, audible glitches possible."));
     }
 
   return (OK);

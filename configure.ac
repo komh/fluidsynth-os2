@@ -8,7 +8,7 @@ dnl *** NOTE *** Don't forget to update library version below also
 
 FLUIDSYNTH_VERSION_MAJOR=1
 FLUIDSYNTH_VERSION_MINOR=1
-FLUIDSYNTH_VERSION_MICRO=5
+FLUIDSYNTH_VERSION_MICRO=7
 FLUIDSYNTH_VERSION=$FLUIDSYNTH_VERSION_MAJOR.$FLUIDSYNTH_VERSION_MINOR.$FLUIDSYNTH_VERSION_MICRO
 
 AC_SUBST(FLUIDSYNTH_VERSION_MAJOR)
@@ -29,8 +29,8 @@ dnl if any interfaces have been added: lt_age++
 dnl if any interfaces have been removed/changed (compatibility broken): lt_age=0
 
 m4_define([lt_current], [6])
-m4_define([lt_revision], [1])
-m4_define([lt_age], [5])
+m4_define([lt_revision], [0])
+m4_define([lt_age], [6])
 
 LT_VERSION_INFO="lt_current:lt_revision:lt_age"
 AC_SUBST(LT_VERSION_INFO)
@@ -452,7 +452,37 @@ else
 fi
 AM_CONDITIONAL(LADCCA_SUPPORT, test "$LADCCA_FOUND" = "yes")
 
-
+#Checking for IPV6 support
+AC_MSG_CHECKING(for IPv6 support)
+AC_ARG_ENABLE(ipv6, AS_HELP_STRING([--enable-ipv6],
+                [Enable IPV6 support (default=auto)]),
+  ENABLE_IPV6=$enableval,
+  ENABLE_IPV6=yes)
+if test "$ENABLE_IPV6" = "yes" ; then
+    AC_CACHE_VAL(ac_cv_ipv6,
+    AC_TRY_RUN([
+    #include <sys/types.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <stdlib.h>
+     main()
+       {
+       int fd;
+       struct sockaddr_in6 foo;
+       fd = socket(AF_INET6, SOCK_STREAM, 0);
+       exit(fd >= 0 ? 0 : 1);
+       }],
+       ac_cv_ipv6=yes,
+       ac_cv_ipv6=no,
+       ac_cv_ipv6=yes))
+    AC_MSG_RESULT($ac_cv_ipv6)
+    if test $ac_cv_ipv6 = yes ; then
+        AC_DEFINE(IPV6,1,[check if system supports IPV6])
+    else
+        ENABLE_IPV6="no"
+    fi
+ 
+fi
 
 AC_OUTPUT([
 	Makefile
@@ -543,6 +573,11 @@ else
   echo "LADSPA support:        no"
 fi
 
+if test "${ENABLE_IPV6}" = "yes"; then
+  echo "IPV6 support:          yes"
+else
+  echo "IPV6 support:          no"
+fi
 if test "${LASH_FOUND}" = "yes"; then
   echo "LASH support:          yes (NOTE: GPL library)"
 else

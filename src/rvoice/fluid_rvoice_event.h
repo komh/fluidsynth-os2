@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -67,9 +67,11 @@ int fluid_rvoice_eventhandler_dispatch_count(fluid_rvoice_eventhandler_t*);
 static FLUID_INLINE void 
 fluid_rvoice_eventhandler_flush(fluid_rvoice_eventhandler_t* handler)
 {
-  if (handler->queue_stored > 0) {
-    fluid_ringbuffer_next_inptr(handler->queue, handler->queue_stored);
-    handler->queue_stored = 0;
+  int queue_stored = fluid_atomic_int_get(&handler->queue_stored);
+    
+  if (queue_stored > 0) {
+    fluid_atomic_int_set(&handler->queue_stored, 0);
+    fluid_ringbuffer_next_inptr(handler->queue, queue_stored);
   }
 }
 

@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -233,7 +233,7 @@ new_fluid_shell(fluid_settings_t* settings, fluid_cmd_handler_t* handler,
   fluid_shell_init(shell, settings, handler, in, out);
 
   if (thread) {
-    shell->thread = new_fluid_thread((fluid_thread_func_t) fluid_shell_run, shell,
+    shell->thread = new_fluid_thread("shell", (fluid_thread_func_t) fluid_shell_run, shell,
                                      0, TRUE);
     if (shell->thread == NULL) {
       delete_fluid_shell(shell);
@@ -695,9 +695,14 @@ fluid_handle_fonts(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 
   for (i = 0; i < num; i++) {
     sfont = fluid_synth_get_sfont(synth, i);
-    fluid_ostream_printf(out, "%2d  %s\n",
-			fluid_sfont_get_id(sfont),
-			fluid_sfont_get_name(sfont));
+    if (sfont) {
+      fluid_ostream_printf(out, "%2d  %s\n",
+                       fluid_sfont_get_id(sfont),
+                       fluid_sfont_get_name(sfont));
+    }
+    else {
+      fluid_ostream_printf(out, "sfont is \"NULL\" for index %d\n", i);
+    }
   }
 
   return 0;
@@ -818,7 +823,7 @@ fluid_handle_reverbsetlevel(fluid_synth_t* synth, int ac, char** av, fluid_ostre
     return -1;
   }
   level = atof(av[0]);
-  if (abs(level) > 30){
+  if (fabs(level) > 30){
     fluid_ostream_printf(out, "rev_setlevel: Value too high! (Value of 10 =+20 dB)\n");
     return 0;
   }
@@ -1803,7 +1808,7 @@ struct _fluid_server_t {
   fluid_mutex_t mutex;
 };
 
-static void fluid_server_handle_connection(fluid_server_t* server,
+static int fluid_server_handle_connection(fluid_server_t* server,
 					  fluid_socket_t client_socket,
 					  char* addr);
 static void fluid_server_close(fluid_server_t* server);
@@ -1896,7 +1901,7 @@ static void fluid_server_close(fluid_server_t* server)
   }
 }
 
-static void
+static int
 fluid_server_handle_connection(fluid_server_t* server, fluid_socket_t client_socket, char* addr)
 {
   fluid_client_t* client;
@@ -1904,14 +1909,16 @@ fluid_server_handle_connection(fluid_server_t* server, fluid_socket_t client_soc
 
   handler = server->newclient(server->data, addr);
   if (handler == NULL) {
-    return;
+    return -1;
   }
 
   client = new_fluid_client(server, server->settings, handler, client_socket);
   if (client == NULL) {
-    return;
+    return -1;
   }
   fluid_server_add_client(server, client);
+
+  return 0;
 }
 
 void fluid_server_add_client(fluid_server_t* server, fluid_client_t* client)
@@ -1982,7 +1989,7 @@ new_fluid_client(fluid_server_t* server, fluid_settings_t* settings,
   client->settings = settings;
   client->handler = handler;
 
-  client->thread = new_fluid_thread((fluid_thread_func_t) fluid_client_run, client,
+  client->thread = new_fluid_thread("client", (fluid_thread_func_t) fluid_client_run, client,
                                     0, FALSE);
 
   if (client->thread == NULL) {

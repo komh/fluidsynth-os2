@@ -1,6 +1,11 @@
 [:Team:]
 Current development team
 
+Tom Moebert
+
+
+Former development team
+
 Josh Green
 Pedro Lopez-Cabanillas
 David Henningsson
@@ -22,7 +27,7 @@ summary of contributions.
 * Peter Hanappe. Initiated the project. files: stuck his nose in all
   files.
 
-* Josh Green is the current maintainer and contributed a lot of code
+* Josh Green is the former maintainer and contributed a lot of code
   directly or indirectly through the Swami and Smurf code base.
   The SoundFont loader is completely based on his code. He also wrote
   the alsa sequencer driver. He made many changes and bug fixes,
@@ -72,7 +77,7 @@ summary of contributions.
   to make iiwusynth independent from any library for maximum
   portability.
 
-* David Henningsson added code for fast rendering of MIDI files, 
+* David Henningsson added code for fast rendering of MIDI files,
   rewrote the thread safety for 1.1.2, and fixed many bugs.
 
 * The midi device uses code from jMax's alsarawmidi.c file and from
@@ -111,6 +116,9 @@ summary of contributions.
 
 * Pedro Lopez-Cabanillas wrote the CoreMIDI driver for MacOSX, the CMake based 
   build system, revised the doxygen documentation, sequencer examples, fixes.
+
+* Matt Giuca improved the midi player by letting it load midi files from RAM,
+  and by making it handle EOT events.
 
 * Growing list of individuals who contributed bug fixes, corrections and minor features:
 Nicolas Boulicault for ALSA sequencer midi.portname setting.

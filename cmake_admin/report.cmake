@@ -1,6 +1,8 @@
 message( "\n**************************************************************\n"
          "Summary:" )
 
+message( "Build type:            " ${CMAKE_BUILD_TYPE} )
+
 if ( LIBSNDFILE_SUPPORT )
   if ( LIBSNDFILE_HASVORBIS )
     message ( "libsndfile:            yes (with ogg vorbis support)" )
@@ -100,6 +102,12 @@ if ( AUFILE_SUPPORT )
 else ( AUFILE_SUPPORT )
   message ( "Audio to file driver:  no" )
 endif ( AUFILE_SUPPORT )
+
+if ( IPV6_SUPPORT )
+  message ( "IPV6 Support :         yes" )
+else ( IPV6_SUPPORT )
+  message ( "IPV6 Support :         no" )
+endif ( IPV6_SUPPORT )
 
 if ( WITH_READLINE )
   message ( "Readline:              yes (NOTE: GPL library)" )

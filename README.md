@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/FluidSynth/fluidsynth.svg?branch=master)](https://travis-ci.org/FluidSynth/fluidsynth)
+
 Introduction
 ============
 
@@ -84,7 +86,7 @@ Documentation
 - Introduction to SoundFonts, by Josh Green,
   http://smurf.sourceforge.net/sfont_intro.php
 
-- Soundfont2 Documentation, http://www.emu.com/download/sfspec21.pdf (if
+- Soundfont2 Documentation, http://www.synthfont.com/SFSPEC21.PDF (if
   it moved, do a search on sfspec21.pdf).
 
 - Soundfont.com FAQ, http://www.soundfont.com/faqs.html
@@ -110,12 +112,13 @@ Soundfont Editors
 
 - Smurf Soundfont Editor by Josh Green (Linux), http://smurf.sourceforge.net
 
-- Vienna SoundFont Editor from Creative Labs (Win),
-http://www.soundblaster.com/goodies/vienna
+- Vienna SoundFont Editor by Creative Technology Ltd. (Win)
 
-- Alive Soundfont Editor by Soundfaction (Win),
-http://www.soundfaction.com/alive/index.htm
+- Alive Soundfont Editor by Soundfaction (Win), http://www.soundfaction.com/alive/index.htm
 
+- Polyphone, http://polyphone-soundfonts.com/en/
+
+    **Note:** We cannot recommend using Audio Compositor for creating or editing Soundfonts, as it generates files that violate the Soundfont2 spec (specifically the order of generators as defined in section 8.1.2) and are therefore unusable with fluidsynth!
 
 Conversion Tools
 

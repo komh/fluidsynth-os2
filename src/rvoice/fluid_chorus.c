@@ -1,13 +1,25 @@
-/*
- * August 24, 1998
- * Copyright (C) 1998 Juergen Mueller And Sundry Contributors
- * This source code is freely redistributable and may be used for
- * any purpose.  This copyright notice must be maintained.
- * Juergen Mueller And Sundry Contributors are not responsible for
- * the consequences of using this software.
+/* FluidSynth - A Software Synthesizer
+ *
+ * Copyright (C) 2003  Peter Hanappe, Markus Nentwig and others.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA
  */
 
 /*
+  based on a chrous implementation made by Juergen Mueller And Sundry Contributors in 1998
 
   CHANGES
 
@@ -236,7 +248,7 @@ fluid_chorus_reset(fluid_chorus_t* chorus)
  * @param set Flags indicating which chorus parameters to set (#fluid_chorus_set_t)
  * @param nr Chorus voice count (0-99, CPU time consumption proportional to
  *   this value)
- * @param level Chorus level (0.0-1.0)
+ * @param level Chorus level (0.0-10.0)
  * @param speed Chorus speed in Hz (0.29-5.0)
  * @param depth_ms Chorus depth (max value depends on synth sample rate,
  *   0.0-21.0 is safe for sample rate values up to 96KHz)
@@ -250,7 +262,7 @@ fluid_chorus_set(fluid_chorus_t* chorus, int set, int nr, float level,
   int i;
 
   if (set & FLUID_CHORUS_SET_NR) chorus->number_blocks = nr;
-  if (set & FLUID_CHORUS_SET_LEVEL) chorus->level = level;    
+  if (set & FLUID_CHORUS_SET_LEVEL) chorus->level = level;
   if (set & FLUID_CHORUS_SET_SPEED) chorus->speed_Hz = speed;
   if (set & FLUID_CHORUS_SET_DEPTH) chorus->depth_ms = depth_ms;
   if (set & FLUID_CHORUS_SET_TYPE) chorus->type = type;

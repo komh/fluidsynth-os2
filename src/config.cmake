@@ -22,6 +22,9 @@
 /* Define if D-Bus support is enabled */
 #cmakedefine DBUS_SUPPORT  @DBUS_SUPPORT@
 
+/* Soundfont to load automatically in some use cases */
+#cmakedefine DEFAULT_SOUNDFONT "@DEFAULT_SOUNDFONT@"
+
 /* Define to enable FPE checks */
 #cmakedefine FPE_CHECK @FPE_CHECK@
 
@@ -127,11 +130,20 @@
 /* Define to 1 if you have the <windows.h> header file. */
 #cmakedefine HAVE_WINDOWS_H @HAVE_WINDOWS_H@
 
+/* Define to 1 if you have the <getopt.h> header file. */
+#cmakedefine HAVE_GETOPT_H @HAVE_GETOPT_H@
+
+/* Define to 1 if you have the inet_ntop() function. */
+#cmakedefine HAVE_INETNTOP @HAVE_INETNTOP@
+
 /* Define to enable JACK driver */
 #cmakedefine JACK_SUPPORT @JACK_SUPPORT@
 
 /* Include the LADSPA Fx unit */
 #cmakedefine LADSPA @LADSPA_SUPPORT@
+
+/* Define to enable IPV6 support */
+#cmakedefine IPV6_SUPPORT @IPV6_SUPPORT@
 
 /* libsndfile has ogg vorbis support */
 #cmakedefine LIBSNDFILE_HASVORBIS @LIBSNDFILE_HASVORBIS@

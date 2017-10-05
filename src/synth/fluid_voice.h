@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -48,7 +48,8 @@ enum fluid_voice_status
 {
 	FLUID_VOICE_CLEAN,
 	FLUID_VOICE_ON,
-	FLUID_VOICE_SUSTAINED,
+	FLUID_VOICE_SUSTAINED,         /* Sustained by Sustain pedal */
+	FLUID_VOICE_HELD_BY_SOSTENUTO, /* Sustained by Sostenuto pedal */
 	FLUID_VOICE_OFF
 };
 
@@ -62,8 +63,8 @@ struct _fluid_voice_t
 					   it's used for noteoff's  */
 	unsigned char status;
 	unsigned char chan;             /* the channel number, quick access for channel messages */
-	unsigned char key;              /* the key, quick access for noteoff */
-	unsigned char vel;              /* the velocity */
+	unsigned char key;              /* the key of the noteon event, quick access for noteoff */
+	unsigned char vel;              /* the velocity of the noteon event */
 	fluid_channel_t* channel;
 	fluid_gen_t gen[GEN_LAST];
 	fluid_mod_t mod[FLUID_NUM_MOD];
@@ -142,8 +143,10 @@ int fluid_voice_set_output_rate(fluid_voice_t* voice, fluid_real_t value);
     function.*/
 void fluid_voice_update_param(fluid_voice_t* voice, int gen);
 
+void fluid_voice_release(fluid_voice_t* voice);
 int fluid_voice_noteoff(fluid_voice_t* voice);
-int fluid_voice_off(fluid_voice_t* voice);
+void fluid_voice_off(fluid_voice_t* voice);
+void fluid_voice_stop(fluid_voice_t* voice);
 void fluid_voice_overflow_rvoice_finished(fluid_voice_t* voice);
 void fluid_voice_mix (fluid_voice_t *voice, int count, fluid_real_t* dsp_buf,
 		 fluid_real_t* left_buf, fluid_real_t* right_buf,
@@ -175,21 +178,6 @@ fluid_voice_unlock_rvoice(fluid_voice_t* voice)
   voice->can_access_rvoice = 1;
 }
 
-
-#define fluid_voice_get_channel(voice)  ((voice)->channel)
-
-
-#define fluid_voice_set_id(_voice, _id)  { (_voice)->id = (_id); }
-#define fluid_voice_get_chan(_voice)     (_voice)->chan
-
-
-#define _PLAYING(voice)  (((voice)->status == FLUID_VOICE_ON) || ((voice)->status == FLUID_VOICE_SUSTAINED))
-
-/* A voice is 'ON', if it has not yet received a noteoff
- * event. Sending a noteoff event will advance the envelopes to
- * section 5 (release). */
-#define _ON(voice)  ((voice)->status == FLUID_VOICE_ON && !voice->has_noteoff)
-#define _SUSTAINED(voice)  ((voice)->status == FLUID_VOICE_SUSTAINED)
 #define _AVAILABLE(voice)  ((voice)->can_access_rvoice && \
  (((voice)->status == FLUID_VOICE_CLEAN) || ((voice)->status == FLUID_VOICE_OFF)))
 //#define _RELEASED(voice)  ((voice)->chan == NO_CHANNEL)

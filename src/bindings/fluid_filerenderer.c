@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -290,6 +290,7 @@ new_fluid_file_renderer(fluid_synth_t* synth)
 	/* Turn on clipping and normalization of floats (-1.0 - 1.0) */
 	sf_command (dev->sndfile, SFC_SET_CLIPPING, NULL, SF_TRUE);
 	sf_command (dev->sndfile, SFC_SET_NORM_FLOAT, NULL, SF_TRUE);
+
 #else
 	dev->file = fopen(filename, "wb");
 	if (dev->file == NULL) {
@@ -304,6 +305,22 @@ new_fluid_file_renderer(fluid_synth_t* synth)
 	if (filename) FLUID_FREE (filename);
 	delete_fluid_file_renderer(dev);
 	return NULL;
+}
+
+/**
+ * Set vbr encoding quality (only available with libsndfile support)
+ * @param dev File renderer object.
+ * @since 1.1.7
+ */
+int
+fluid_file_set_encoding_quality(fluid_file_renderer_t* r, double q)
+{
+#if LIBSNDFILE_SUPPORT
+	if (sf_command (r->sndfile, SFC_SET_VBR_ENCODING_QUALITY, &q, sizeof (double)) == 0)
+		return FLUID_OK;
+	else
+#endif
+		return FLUID_FAILED;
 }
 
 /**

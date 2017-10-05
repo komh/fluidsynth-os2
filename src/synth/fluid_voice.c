@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -143,6 +143,38 @@ static inline void fluid_sample_null_ptr(fluid_sample_t** sample)
 }
 
 /*
+ * Swaps the current rvoice with the current overflow_rvoice
+ */
+static void fluid_voice_swap_rvoice(fluid_voice_t* voice)
+{
+  fluid_rvoice_t* rtemp = voice->rvoice;
+  int ctemp = voice->can_access_rvoice;
+  voice->rvoice = voice->overflow_rvoice;
+  voice->can_access_rvoice = voice->can_access_overflow_rvoice;
+  voice->overflow_rvoice = rtemp;
+  voice->can_access_overflow_rvoice = ctemp;
+}
+
+static void fluid_voice_initialize_rvoice(fluid_voice_t* voice)
+{
+  FLUID_MEMSET(voice->rvoice, 0, sizeof(fluid_rvoice_t));
+
+  /* The 'sustain' and 'finished' segments of the volume / modulation
+   * envelope are constant. They are never affected by any modulator
+   * or generator. Therefore it is enough to initialize them once
+   * during the lifetime of the synth.
+   */
+  fluid_voice_update_volenv(voice, FLUID_VOICE_ENVSUSTAIN, 
+                          0xffffffff, 1.0f, 0.0f, -1.0f, 2.0f);
+  fluid_voice_update_volenv(voice, FLUID_VOICE_ENVFINISHED, 
+                          0xffffffff, 0.0f, 0.0f, -1.0f, 1.0f);
+  fluid_voice_update_modenv(voice, FLUID_VOICE_ENVSUSTAIN, 
+                          0xffffffff, 1.0f, 0.0f, -1.0f, 2.0f);
+  fluid_voice_update_modenv(voice, FLUID_VOICE_ENVFINISHED, 
+                          0xffffffff, 0.0f, 0.0f, -1.0f, 1.0f);
+}
+
+/*
  * new_fluid_voice
  */
 fluid_voice_t*
@@ -162,10 +194,6 @@ new_fluid_voice(fluid_real_t output_rate)
     FLUID_FREE(voice);
     return NULL;
   }
-  FLUID_MEMSET(voice->rvoice, 0, sizeof(fluid_rvoice_t));
-  FLUID_MEMSET(voice->overflow_rvoice, 0, sizeof(fluid_rvoice_t));
-  voice->can_access_rvoice = 1; 
-  voice->can_access_overflow_rvoice = 1; 
 
   voice->status = FLUID_VOICE_CLEAN;
   voice->chan = NO_CHANNEL;
@@ -173,21 +201,15 @@ new_fluid_voice(fluid_real_t output_rate)
   voice->vel = 0;
   voice->channel = NULL;
   voice->sample = NULL;
-  fluid_voice_set_output_rate(voice, output_rate);
 
-  /* The 'sustain' and 'finished' segments of the volume / modulation
-   * envelope are constant. They are never affected by any modulator
-   * or generator. Therefore it is enough to initialize them once
-   * during the lifetime of the synth.
-   */
-  fluid_voice_update_volenv(voice, FLUID_VOICE_ENVSUSTAIN, 
-                          0xffffffff, 1.0f, 0.0f, -1.0f, 2.0f);
-  fluid_voice_update_volenv(voice, FLUID_VOICE_ENVFINISHED, 
-                          0xffffffff, 0.0f, 0.0f, -1.0f, 1.0f);
-  fluid_voice_update_modenv(voice, FLUID_VOICE_ENVSUSTAIN, 
-                          0xffffffff, 1.0f, 0.0f, -1.0f, 2.0f);
-  fluid_voice_update_modenv(voice, FLUID_VOICE_ENVFINISHED, 
-                          0xffffffff, 0.0f, 0.0f, -1.0f, 1.0f);
+  /* Initialize both the rvoice and overflow_rvoice */
+  voice->can_access_rvoice = 1; 
+  voice->can_access_overflow_rvoice = 1; 
+  fluid_voice_initialize_rvoice(voice);
+  fluid_voice_swap_rvoice(voice);
+  fluid_voice_initialize_rvoice(voice);
+
+  fluid_voice_set_output_rate(voice, output_rate);
 
   return voice;
 }
@@ -209,19 +231,6 @@ delete_fluid_voice(fluid_voice_t* voice)
   FLUID_FREE(voice->rvoice);
   FLUID_FREE(voice);
   return FLUID_OK;
-}
-
-/*
- * Swaps the current rvoice with the current overflow_rvoice
- */
-static void fluid_voice_swap_rvoice(fluid_voice_t* voice)
-{
-  fluid_rvoice_t* rtemp = voice->rvoice;
-  int ctemp = voice->can_access_rvoice;
-  voice->rvoice = voice->overflow_rvoice;
-  voice->can_access_rvoice = voice->can_access_overflow_rvoice;
-  voice->overflow_rvoice = rtemp;
-  voice->can_access_overflow_rvoice = ctemp;
 }
 
 /* fluid_voice_init
@@ -281,7 +290,7 @@ fluid_voice_init(fluid_voice_t* voice, fluid_sample_t* sample,
    * into voice parameters in
    * fluid_voice_calculate_runtime_synthesis_parameters.  */
   fluid_gen_init(&voice->gen[0], channel);
-  UPDATE_RVOICE_I1(fluid_rvoice_set_samplemode, voice->gen[GEN_SAMPLEMODE].val);
+  UPDATE_RVOICE_I1(fluid_rvoice_set_samplemode, _SAMPLEMODE(voice));
 
   voice->synth_gain = gain;
   /* avoid division by zero later*/
@@ -304,12 +313,12 @@ fluid_voice_init(fluid_voice_t* voice, fluid_sample_t* sample,
 
 /**
  * Update sample rate. 
- * NOTE: If the voice is active, it will be turned off.
+ * @note If the voice is active, it will be turned off.
  */
 int 
 fluid_voice_set_output_rate(fluid_voice_t* voice, fluid_real_t value)
 {
-  if (_PLAYING(voice))
+  if (fluid_voice_is_playing(voice))
     fluid_voice_off(voice);
   
   voice->output_rate = value;
@@ -335,7 +344,7 @@ fluid_voice_gen_set(fluid_voice_t* voice, int i, float val)
   voice->gen[i].val = val;
   voice->gen[i].flags = GEN_SET;
   if (i == GEN_SAMPLEMODE)
-    UPDATE_RVOICE_I1(fluid_rvoice_set_samplemode, val);
+    UPDATE_RVOICE_I1(fluid_rvoice_set_samplemode, (int) val);
 }
 
 /**
@@ -398,7 +407,7 @@ fluid_voice_write (fluid_voice_t* voice, fluid_real_t *dsp_buf)
   if (result == -1)
     return 0;
 
-  if ((result < FLUID_BUFSIZE) && _PLAYING(voice)) /* Voice finished by itself */
+  if ((result < FLUID_BUFSIZE) && fluid_voice_is_playing(voice)) /* Voice finished by itself */
     fluid_voice_off(voice);
 
   return result;
@@ -472,10 +481,10 @@ fluid_voice_calculate_gen_pitch(fluid_voice_t* voice)
     tuning = fluid_channel_get_tuning (voice->channel);
     x = fluid_tuning_get_pitch (tuning, (int)(voice->root_pitch / 100.0f));
     voice->gen[GEN_PITCH].val = voice->gen[GEN_SCALETUNE].val / 100.0f *
-      (fluid_tuning_get_pitch (tuning, voice->key) - x) + x;
+      (fluid_tuning_get_pitch (tuning, fluid_voice_get_actual_key(voice)) - x) + x;
   } else {
     voice->gen[GEN_PITCH].val = voice->gen[GEN_SCALETUNE].val
-      * (voice->key - voice->root_pitch / 100.0f) + voice->root_pitch;
+      * (fluid_voice_get_actual_key(voice) - voice->root_pitch / 100.0f) + voice->root_pitch;
   }
 
 }
@@ -627,7 +636,7 @@ calculate_hold_decay_buffers(fluid_voice_t* voice, int gen_base,
    * will cause (60-72)*100=-1200 timecents of time variation.
    * The time is cut in half.
    */
-  timecents = (_GEN(voice, gen_base) + _GEN(voice, gen_key2base) * (60.0 - voice->key));
+  timecents = (_GEN(voice, gen_base) + _GEN(voice, gen_key2base) * (60.0 - fluid_voice_get_actual_key(voice)));
 
   /* Range checking */
   if (is_decay){
@@ -754,15 +763,19 @@ fluid_voice_update_param(fluid_voice_t* voice, int gen)
      * which offsets the original rate.  This means that the fine tuning is
      * inverted with respect to the root note (so subtract it, not add).
      */
-    if (voice->gen[GEN_OVERRIDEROOTKEY].val > -1) {   //FIXME: use flag instead of -1
-      voice->root_pitch = voice->gen[GEN_OVERRIDEROOTKEY].val * 100.0f
-	- voice->sample->pitchadj;
-    } else {
-      voice->root_pitch = voice->sample->origpitch * 100.0f - voice->sample->pitchadj;
-    }
-    x = fluid_ct2hz(voice->root_pitch);
     if (voice->sample != NULL) {
-      x *= (fluid_real_t) voice->output_rate / voice->sample->samplerate;
+      if (voice->gen[GEN_OVERRIDEROOTKEY].val > -1)   //FIXME: use flag instead of -1
+        voice->root_pitch = voice->gen[GEN_OVERRIDEROOTKEY].val * 100.0f
+	  - voice->sample->pitchadj;
+      else
+        voice->root_pitch = voice->sample->origpitch * 100.0f - voice->sample->pitchadj;
+      x = (fluid_ct2hz(voice->root_pitch) * ((fluid_real_t) voice->output_rate / voice->sample->samplerate));
+    } else {
+      if (voice->gen[GEN_OVERRIDEROOTKEY].val > -1)    //FIXME: use flag instead of -1
+        voice->root_pitch = voice->gen[GEN_OVERRIDEROOTKEY].val * 100.0f;
+      else
+        voice->root_pitch = 0;
+      x = fluid_ct2hz(voice->root_pitch);
     }
     /* voice->pitch depends on voice->root_pitch, so calculate voice->pitch now */
     fluid_voice_calculate_gen_pitch(voice);
@@ -876,11 +889,17 @@ fluid_voice_update_param(fluid_voice_t* voice, int gen)
      *
      * There is a flag, which should indicate, whether a generator is
      * enabled or not.  But here we rely on the default value of -1.
-     * */
+     */
+    
+    /* 2017-09-02: do not change the voice's key here, otherwise it will
+     * never be released on a noteoff event
+     */
+#if 0
     x = _GEN(voice, GEN_KEYNUM);
     if (x >= 0){
       voice->key = x;
     }
+#endif
     break;
 
   case GEN_VELOCITY:
@@ -890,11 +909,18 @@ fluid_voice_update_param(fluid_voice_t* voice, int gen)
      * value. Non-realtime controller.
      *
      * There is a flag, which should indicate, whether a generator is
-     * enabled or not. But here we rely on the default value of -1.  */
+     * enabled or not. But here we rely on the default value of -1.
+     */
+    /* 2017-09-02: do not change the voice's velocity here, user
+     * fluid_voice_get_actual_velocity() to get the value of this generator
+     * if active.
+     */
+#if 0
     x = _GEN(voice, GEN_VELOCITY);
     if (x > 0) {
       voice->vel = x;
     }
+#endif
     break;
 
   case GEN_MODENVTOPITCH:
@@ -1170,23 +1196,47 @@ int fluid_voice_modulate_all(fluid_voice_t* voice)
 }
 
 /*
+ Force the voice into release stage. Useful anywhere a voice
+ needs to be damped even if pedals (sustain sostenuto) are depressed.
+ See fluid_synth_damp_voices_by_sustain_LOCAL(),
+ fluid_synth_damp_voices_by_sostenuto_LOCAL,
+ fluid_voice_noteoff().
+*/
+void
+fluid_voice_release(fluid_voice_t* voice)
+{
+    unsigned int at_tick = fluid_channel_get_min_note_length_ticks (voice->channel);
+    UPDATE_RVOICE_I1(fluid_rvoice_noteoff, at_tick);
+    voice->has_noteoff = 1; // voice is marked as noteoff occured
+}
+
+/*
  * fluid_voice_noteoff
+ * 
+ * Sending a noteoff event will advance the envelopes to section 5 (release).
  */
 int
 fluid_voice_noteoff(fluid_voice_t* voice)
 {
-  unsigned int at_tick;
+  fluid_channel_t* channel;
 
   fluid_profile(FLUID_PROF_VOICE_NOTE, voice->ref);
 
+  channel = voice->channel;
 
-  if (voice->channel && fluid_channel_sustained(voice->channel)) {
-    voice->status = FLUID_VOICE_SUSTAINED;
-  } else {
-    at_tick = fluid_channel_get_min_note_length_ticks (voice->channel);
-    UPDATE_RVOICE_I1(fluid_rvoice_noteoff, at_tick);
-    voice->has_noteoff = 1;
+  /* Sustain a note under Sostenuto pedal */
+  if (fluid_channel_sostenuto(channel) &&
+      channel->sostenuto_orderid > voice->id)
+  { // Sostenuto depressed after note
+    voice->status = FLUID_VOICE_HELD_BY_SOSTENUTO;
   }
+  /* Or sustain a note under Sustain pedal */
+  else if (fluid_channel_sustained(channel)) {
+     voice->status = FLUID_VOICE_SUSTAINED;
+  }
+  /* Or force the voice to release stage */
+  else
+    fluid_voice_release(voice);
 
   return FLUID_OK;
 }
@@ -1208,7 +1258,7 @@ fluid_voice_kill_excl(fluid_voice_t* voice){
 
   unsigned int at_tick;
 
-  if (!_PLAYING(voice)) {
+  if (!fluid_voice_is_playing(voice)) {
     return FLUID_OK;
   }
 
@@ -1242,21 +1292,30 @@ void fluid_voice_overflow_rvoice_finished(fluid_voice_t* voice)
   fluid_sample_null_ptr(&voice->overflow_rvoice->dsp.sample);
 }
 
-
 /*
  * fluid_voice_off
+ * 
+ * Force the voice into finished stage. Useful anywhere a voice
+ * needs to be cancelled from MIDI API.
+ */
+void fluid_voice_off(fluid_voice_t* voice)
+{
+  UPDATE_RVOICE0(fluid_rvoice_voiceoff); /* request to finish the voice */
+}
+
+/*
+ * fluid_voice_stop
  *
  * Purpose:
- * Turns off a voice, meaning that it is not processed
- * anymore by the DSP loop.
+ * Turns off a voice, meaning that it is not processed anymore by the
+ * DSP loop, i.e. contrary part to fluid_voice_start().
  */
-int
-fluid_voice_off(fluid_voice_t* voice)
+void
+fluid_voice_stop(fluid_voice_t* voice)
 {
   fluid_profile(FLUID_PROF_VOICE_RELEASE, voice->ref);
 
   voice->chan = NO_CHANNEL;
-  UPDATE_RVOICE0(fluid_rvoice_voiceoff);
   
   if (voice->can_access_rvoice)
     fluid_sample_null_ptr(&voice->rvoice->dsp.sample);
@@ -1269,8 +1328,6 @@ fluid_voice_off(fluid_voice_t* voice)
 
   /* Decrement voice count */
   voice->channel->synth->active_voice_count--;
-
-  return FLUID_OK;
 }
 
 /**
@@ -1295,13 +1352,14 @@ fluid_voice_add_mod(fluid_voice_t* voice, fluid_mod_t* mod, int mode)
    */
 
   if (((mod->flags1 & FLUID_MOD_CC) == 0)
-      && ((mod->src1 != 0)          /* SF2.01 section 8.2.1: Constant value */
-	  && (mod->src1 != 2)       /* Note-on velocity */
-	  && (mod->src1 != 3)       /* Note-on key number */
-	  && (mod->src1 != 10)      /* Poly pressure */
-	  && (mod->src1 != 13)      /* Channel pressure */
-	  && (mod->src1 != 14)      /* Pitch wheel */
-	  && (mod->src1 != 16))) {  /* Pitch wheel sensitivity */
+      && ((mod->src1 != FLUID_MOD_NONE)            /* SF2.01 section 8.2.1: Constant value */
+       && (mod->src1 != FLUID_MOD_VELOCITY)        /* Note-on velocity */
+       && (mod->src1 != FLUID_MOD_KEY)             /* Note-on key number */
+       && (mod->src1 != FLUID_MOD_KEYPRESSURE)     /* Poly pressure */
+       && (mod->src1 != FLUID_MOD_CHANNELPRESSURE) /* Channel pressure */
+       && (mod->src1 != FLUID_MOD_PITCHWHEEL)      /* Pitch wheel */
+       && (mod->src1 != FLUID_MOD_PITCHWHEELSENS)))/* Pitch wheel sensitivity */
+  {
     FLUID_LOG(FLUID_WARN, "Ignoring invalid controller, using non-CC source %i.", mod->src1);
     return;
   }
@@ -1335,6 +1393,10 @@ fluid_voice_add_mod(fluid_voice_t* voice, fluid_mod_t* mod, int mode)
   if (voice->mod_count < FLUID_NUM_MOD) {
     fluid_mod_clone(&voice->mod[voice->mod_count++], mod);
   }
+  else
+  {
+    FLUID_LOG(FLUID_WARN, "Voice %i has more modulators than supported, ignoring.", voice->id);
+  }
 }
 
 /**
@@ -1353,19 +1415,132 @@ fluid_voice_add_mod(fluid_voice_t* voice, fluid_mod_t* mod, int mode)
  *
  * Otherwise the voice has finished playing.
  */
-unsigned int fluid_voice_get_id(fluid_voice_t* voice)
+unsigned int fluid_voice_get_id(const fluid_voice_t* voice)
 {
   return voice->id;
 }
 
 /**
- * Check if a voice is still playing.
+ * Check if a voice is producing sound. This is also true after a voice received a noteoff as it may be playing in release phase.
  * @param voice Voice instance
  * @return TRUE if playing, FALSE otherwise
  */
-int fluid_voice_is_playing(fluid_voice_t* voice)
+int fluid_voice_is_playing(const fluid_voice_t* voice)
 {
-  return _PLAYING(voice);
+  return  (voice->status == FLUID_VOICE_ON)
+          || fluid_voice_is_sustained(voice)
+          || fluid_voice_is_sostenuto(voice);
+
+}
+
+/**
+ * Check if a voice is ON. A voice is ON, if it has not yet received a noteoff event.
+ * @param voice Voice instance
+ * @return TRUE if on, FALSE otherwise
+ * @since 1.1.7
+ */
+int fluid_voice_is_on(const fluid_voice_t* voice)
+{
+  return (voice->status == FLUID_VOICE_ON && !voice->has_noteoff);
+}
+
+/**
+ * Check if a voice is sustained.
+ * @param voice Voice instance
+ * @return TRUE if sustained, FALSE otherwise
+ * @since 1.1.7
+ */
+int fluid_voice_is_sustained(const fluid_voice_t* voice)
+{
+  return (voice->status == FLUID_VOICE_SUSTAINED);
+}
+
+/**
+ * Check if a voice is held by sostenuto.
+ * @param voice Voice instance
+ * @return TRUE if sostenuto, FALSE otherwise
+ * @since 1.1.7
+ */
+int fluid_voice_is_sostenuto(const fluid_voice_t* voice)
+{
+  return (voice->status == FLUID_VOICE_HELD_BY_SOSTENUTO);
+}
+
+/**
+ * If the voice is playing, gets the midi channel the voice is playing on. Else the result is undefined.
+ * @param voice Voice instance
+ * @return The channel assigned to this voice
+ * @since 1.1.7
+ */
+int fluid_voice_get_channel(const fluid_voice_t* voice)
+{
+  return voice->chan;
+}
+
+/**
+ * If the voice is playing, gets the midi key the voice is actually playing at. Else the result is undefined.
+ * If the voice was started from an instrument which uses a fixed key generator, it returns that.
+ * Else returns the same as \c fluid_voice_get_key.
+ * @param voice Voice instance
+ * @return The midi key this voice is playing at
+ * @since 1.1.7
+ */
+int fluid_voice_get_actual_key(const fluid_voice_t* voice)
+{
+    fluid_real_t x = _GEN(voice, GEN_KEYNUM);
+    if (x >= 0)
+    {
+        return (int)x;
+    }
+    else
+    {
+        return fluid_voice_get_key(voice);
+    }
+}
+
+/**
+ * If the voice is playing, gets the midi key from the noteon event, by which the voice was initially turned on with.
+ * Else the result is undefined.
+ * @param voice Voice instance
+ * @return The midi key of the noteon event that originally turned on this voice
+ * @since 1.1.7
+ */
+int fluid_voice_get_key(const fluid_voice_t* voice)
+{
+  return voice->key;
+}
+
+/**
+ * If the voice is playing, gets the midi velocity the voice is actually playing at. Else the result is undefined.
+ * If the voice was started from an instrument which uses a fixed velocity generator, it returns that.
+ * Else returns the same as \c fluid_voice_get_velocity.
+ * @param voice Voice instance
+ * @return The midi velocity this voice is playing at
+ * @since 1.1.7
+ */
+int fluid_voice_get_actual_velocity(const fluid_voice_t* voice)
+{
+    fluid_real_t x = _GEN(voice, GEN_VELOCITY);
+    if (x > 0)
+    {
+        return (int)x;
+    }
+    else
+    {
+        return fluid_voice_get_velocity(voice);
+    }
+}
+
+/**
+ * If the voice is playing, gets the midi velocity from the noteon event, by which the voice was initially
+ * turned on with. Else the result is undefined.
+ * @param voice Voice instance
+ * @return The midi velocity which originally turned on this voice
+ * @since 1.1.7
+ */
+int fluid_voice_get_velocity(const fluid_voice_t* voice)
+{
+  return voice->vel;
 }
 
 /*
@@ -1491,27 +1666,27 @@ fluid_voice_optimize_sample(fluid_sample_t* s)
   /* ignore ROM and other(?) invalid samples */
   if (!s->valid) return (FLUID_OK);
 
-  if (!s->amplitude_that_reaches_noise_floor_is_valid){ /* Only once */
+  if (!s->amplitude_that_reaches_noise_floor_is_valid) { /* Only once */
     /* Scan the loop */
-    for (i = (int)s->loopstart; i < (int) s->loopend; i ++){
+    for (i = (int)s->loopstart; i < (int)s->loopend; i++){
       signed short val = s->data[i];
       if (val > peak_max) {
-	peak_max = val;
+        peak_max = val;
       } else if (val < peak_min) {
-	peak_min = val;
+        peak_min = val;
       }
     }
 
     /* Determine the peak level */
-    if (peak_max >- peak_min){
+    if (peak_max > -peak_min) {
       peak = peak_max;
     } else {
-      peak =- peak_min;
-    };
+      peak = -peak_min;
+    }
     if (peak == 0){
       /* Avoid division by zero */
       peak = 1;
-    };
+    }
 
     /* Calculate what factor will make the loop inaudible
      * For example: Take a peak of 3277 (10 % of 32768).  The
@@ -1530,7 +1705,7 @@ fluid_voice_optimize_sample(fluid_sample_t* s)
 #if 0
     printf("Sample peak detection: factor %f\n", (double)result);
 #endif
-  };
+  }
   return FLUID_OK;
 }
 
@@ -1550,13 +1725,12 @@ fluid_voice_get_overflow_prio(fluid_voice_t* voice,
    * Then it is very important.
    * Also skip the released and sustained scores.
    */
-  if (voice->channel->channel_type == CHANNEL_TYPE_DRUM){
+  if (voice->channel->channel_type == CHANNEL_TYPE_DRUM) {
     this_voice_prio += score->percussion;
-  } 
-  else if (voice->has_noteoff) {
+  } else if (voice->has_noteoff) {
     /* Noteoff has */
     this_voice_prio += score->released;
-  } else if (_SUSTAINED(voice)){
+  } else if (fluid_voice_is_sustained(voice) || fluid_voice_is_sostenuto(voice)) {
     /* This voice is still active, since the sustain pedal is held down.
      * Consider it less important than non-sustained channels.
      * This decision is somehow subjective. But usually the sustain pedal
@@ -1571,8 +1745,9 @@ fluid_voice_get_overflow_prio(fluid_voice_t* voice,
    * chord. So give newer voices a higher score. */
   if (score->age) {
     cur_time -= voice->start_time;
-    if (cur_time < 1) 
+    if (cur_time < 1) {
       cur_time = 1; // Avoid div by zero
+    }
     this_voice_prio += (score->age * voice->output_rate) / cur_time;
   }
 
@@ -1582,10 +1757,11 @@ fluid_voice_get_overflow_prio(fluid_voice_t* voice,
     if (voice->has_noteoff) {
       // FIXME: Should take into account where on the envelope we are...?
     }
-    if (a < 0.1) 
+    if (a < 0.1) {
       a = 0.1; // Avoid div by zero
-      this_voice_prio += score->volume / a;
     }
+    this_voice_prio += score->volume / a;
+  }
     
   return this_voice_prio;
 }

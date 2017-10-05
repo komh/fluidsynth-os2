@@ -6,11 +6,12 @@
 \author Pedro López-Cabanillas
 \author Josh Green
 \author David Henningsson
-\author Copyright &copy; 2003-2011 Peter Hanappe, Conrad Berhörster, Antoine Schmitt, Pedro López-Cabanillas, Josh Green, David Henningsson
-\version Revision 1.1.4
-\date 2011-07-22
+\author Tom Moebert
+\author Copyright &copy; 2003-2017 Peter Hanappe, Conrad Berhörster, Antoine Schmitt, Pedro López-Cabanillas, Josh Green, David Henningsson, Tom Moebert
+\version Revision 1.1.7
+\date 2017-09-04
 
-All the source code examples in this document are in the public domain; you can use them as you please. This document is licensed under the Creative Commons Attribution-Share Alike 3.0 Unported License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/3.0/ . The FluidSynth library is distributed under the GNU Library General Public License. A copy of the GNU Library General Public License is contained in the FluidSynth package; if not, visit http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt or write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+All the source code examples in this document are in the public domain; you can use them as you please. This document is licensed under the Creative Commons Attribution-Share Alike 3.0 Unported License. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/3.0/ . The FluidSynth library is distributed under the GNU Lesser General Public License. A copy of the GNU Lesser General Public License is contained in the FluidSynth package; if not, visit http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt or write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 \section Abstract
 
@@ -18,8 +19,10 @@ All the source code examples in this document are in the public domain; you can 
 
 \section Contents Table of Contents
 
-- \ref Disclaimer 
-- \ref Introduction 
+- \ref Disclaimer
+- \ref Introduction
+- \ref NewIn1_1_7
+- \ref NewIn1_1_6
 - \ref NewIn1_1_5
 - \ref NewIn1_1_4
 - \ref NewIn1_1_3
@@ -62,12 +65,42 @@ What is FluidSynth?
 
 - FluidSynth is open source, in active development. For more details, take a look at http://www.fluidsynth.org
 
+\section NewIn1_1_7 Whats new in 1.1.7?
+
+Changes in FluidSynth 1.1.7 concerning developers:
+
+- "synth.parallel-render" has been deprecated
+- fluid_synth_set_channel_type() was not exported properly
+- "audio.jack.multi" had inverse logic
+- fluid_synth_write_*() had timing issues when requesting more than 64 audio frames
+- reverb and chorus are routed to distinct buffers in fluid_synth_nwrite_float()
+- vorbis-compressed sf3 sound fonts are supported
+- the following getters have been added: fluid_voice_is_on(), fluid_voice_is_sustained(), fluid_voice_is_sostenuto(), fluid_voice_get_channel(), fluid_voice_get_key(), fluid_voice_get_actual_key(), fluid_voice_get_velocity(), fluid_voice_get_actual_velocity(), fluid_player_get_current_tick(), fluid_player_get_total_ticks(), fluid_player_get_bpm(), fluid_player_get_midi_tempo()
+- the following enum values have been deprecated: \c FLUID_SEQ_LASTEVENT, \c GEN_LAST, \c LAST_LOG_LEVEL
+
+- For a full list of bug fixes, see
+  https://github.com/FluidSynth/fluidsynth/wiki/ChangeLog#fluidsynth-117
+
+
+\section NewIn1_1_6 Whats new in 1.1.6?
+
+Changes in FluidSynth 1.1.6 concerning developers:
+
+- The player will not continue to the next song until all EOT (end of track events) have been reached.
+- Enable long arguments on all platforms where getopt.h is available
+- Windows: Fluidsynth.pc (pkg-config spec) is now installed.
+- Mac OS X Lion: A build failure was fixed.
+
+- For a full list of bug fixes, see
+  https://github.com/FluidSynth/fluidsynth/wiki/ChangeLog#fluidsynth-116
+
+
 \section NewIn1_1_5 Whats new in 1.1.5?
 
 Changes in FluidSynth 1.1.5 concerning developers:
 - A change in the Jack driver might require a newer Jack version compared to 1.1.4.
 - For a full list of bug fixes, see
-  http://sourceforge.net/apps/trac/fluidsynth/wiki/ChangeLog1_1_5
+  https://github.com/FluidSynth/fluidsynth/wiki/ChangeLog#fluidsynth-115
 
 \section NewIn1_1_4 Whats new in 1.1.4?
 
@@ -79,7 +112,7 @@ Changes in FluidSynth 1.1.4 concerning developers:
 - fluid_synth_all_sounds_off and fluid_synth_all_notes_off are new public API functions. You can use them to turn notes off (i e releasing all keys, voices advance to release phase) or sounds off (more like pressing the mute button), for one channel or all channels.
 - For Mac OS X users: The CoreAudio driver has been adapted to use AuHAL, and the default build style has changed to "FluidSynth.framework".
 - For a full list of other enhancements and bug fixes, see
-  http://sourceforge.net/apps/trac/fluidsynth/wiki/ChangeLog1_1_4
+  https://github.com/FluidSynth/fluidsynth/wiki/ChangeLog#fluidsynth-114
 
 \section NewIn1_1_3 Whats new in 1.1.3?
 
@@ -87,7 +120,7 @@ Changes in FluidSynth 1.1.3 concerning developers:
 
 - There are no new API additions in 1.1.3, this is a pure bug-fix release.
   For a list of bugs fixed, see 
-  https://sourceforge.net/apps/trac/fluidsynth/wiki/ChangeLog1_1_3
+  https://github.com/FluidSynth/fluidsynth/wiki/ChangeLog#fluidsynth-113
 
 \section NewIn1_1_2 Whats new in 1.1.2?
 
@@ -189,7 +222,7 @@ All settings have a name that follows the "dotted-name" notation. For example, "
 int main(int argc, char** argv) 
 {
     fluid_settings_t* settings = new_fluid_settings();
-    fluid_synth_setint(settings, "synth.polyphony", 128);
+    fluid_settings_setint(settings, "synth.polyphony", 128);
     /* ... */
     delete_fluid_settings(settings);
     return 0;
@@ -513,7 +546,9 @@ to call fluid_synth_write_s16, fluid_synth_write_float,
 fluid_synth_nwrite_float or fluid_synth_process in parallel with the
 rest of the calls, and it won't be blocked by time intensive calls to
 the synth. Turn it off if throughput is more important than latency, e g
-in rendering-to-file scenarios where underruns is not an issue.</td>
+in rendering-to-file scenarios where underruns is not an issue.
+<br /><br /><strong>Deprecated:</strong><br />As of 1.1.7 this option is deprecated. This option enforces thread safety for rvoice_mixer, which causes rvoice_events to be queued internally. The current implementation relies on the fact that this option is set to TRUE to correctly render any amount of requested audio. Also calling fluid_synth_write_* in parallel is not considered to be a use-case. It would cause undefined audio output, as it would be unpredictable for the user which rvoice_events specifically would be dispatched to which fluid_synth_write_* call.
+    </td>
   </tr>
 
 
@@ -1455,11 +1490,11 @@ FluidSynth can be also play MIDI files directly from a buffer in memory. If you 
 const char MIDIFILE[] = {
     0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06,
     0x00, 0x01, 0x00, 0x01, 0x01, 0xe0, 0x4d, 0x54,
-    0x72, 0x6b, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x90,
+    0x72, 0x6b, 0x00, 0x00, 0x00, 0x20, 0x00, 0x90,
     0x3c, 0x64, 0x87, 0x40, 0x80, 0x3c, 0x7f, 0x00,
     0x90, 0x43, 0x64, 0x87, 0x40, 0x80, 0x43, 0x7f,
     0x00, 0x90, 0x48, 0x64, 0x87, 0x40, 0x80, 0x48,
-    0x7f, 0x00, 0xff, 0x2f, 0x00,
+    0x7f, 0x83, 0x60, 0xff, 0x2f, 0x00
 };
 
 int main(int argc, char** argv)

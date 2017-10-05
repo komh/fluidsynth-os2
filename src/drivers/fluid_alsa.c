@@ -3,16 +3,16 @@
  * Copyright (C) 2003  Peter Hanappe and others.
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -303,7 +303,7 @@ new_fluid_alsa_audio_driver2(fluid_settings_t* settings,
   }
 
   /* Create the audio thread */
-  dev->thread = new_fluid_thread (fluid_alsa_formats[i].run, dev, realtime_prio, FALSE);
+  dev->thread = new_fluid_thread ("alsa-audio", fluid_alsa_formats[i].run, dev, realtime_prio, FALSE);
 
   if (!dev->thread)
     goto error_recovery;
@@ -347,16 +347,25 @@ static int fluid_alsa_handle_write_error (snd_pcm_t *pcm, int errval)
   case -EAGAIN:
     snd_pcm_wait(pcm, 1);
     break;
+// on some BSD variants ESTRPIPE is defined as EPIPE.
+// not sure why, maybe because this version of alsa doesnt support
+// suspending pcm streams. anyway, since EPIPE seems to be more 
+// likely than ESTRPIPE, so ifdef it out in case.
+#if ESTRPIPE == EPIPE
+  #warning "ESTRPIPE defined as EPIPE. This may cause trouble with ALSA playback."
+#else
+  case -ESTRPIPE:
+    if (snd_pcm_resume(pcm) != 0) {
+      FLUID_LOG(FLUID_ERR, "Failed to resume the audio device");
+      return FLUID_FAILED;
+    }
+#endif
+  /* fall through ... */
+  /* ... since the stream got resumed, but still has to be prepared */
   case -EPIPE:
   case -EBADFD:
     if (snd_pcm_prepare(pcm) != 0) {
       FLUID_LOG(FLUID_ERR, "Failed to prepare the audio device");
-      return FLUID_FAILED;
-    }
-    break;
-  case -ESTRPIPE:
-    if ((snd_pcm_resume(pcm) != 0) && (snd_pcm_prepare(pcm) != 0)) {
-      FLUID_LOG(FLUID_ERR, "Failed to resume the audio device");
       return FLUID_FAILED;
     }
     break;
@@ -384,7 +393,7 @@ static void fluid_alsa_audio_run_float (void *d)
 
   if ((left == NULL) || (right == NULL)) {
     FLUID_LOG(FLUID_ERR, "Out of memory.");
-    return;
+    goto error_recovery;
   }
 
   if (snd_pcm_prepare(dev->pcm) != 0) {
@@ -460,7 +469,7 @@ static void fluid_alsa_audio_run_s16 (void *d)
 
   if ((left == NULL) || (right == NULL) || (buf == NULL)) {
     FLUID_LOG(FLUID_ERR, "Out of memory.");
-    return;
+    goto error_recovery;
   }
 
   handle[0] = left;
@@ -617,7 +626,7 @@ new_fluid_alsa_rawmidi_driver(fluid_settings_t* settings,
   g_atomic_int_set(&dev->should_quit, 0);
 
   /* create the MIDI thread */
-  dev->thread = new_fluid_thread (fluid_alsa_midi_run, dev, realtime_prio, FALSE);
+  dev->thread = new_fluid_thread ("alsa-midi-raw", fluid_alsa_midi_run, dev, realtime_prio, FALSE);
 
   if (!dev->thread)
     goto error_recovery;
@@ -856,7 +865,10 @@ new_fluid_alsa_seq_driver(fluid_settings_t* settings,
 				   SND_SEQ_PORT_CAP_WRITE |
 				   SND_SEQ_PORT_CAP_SUBS_WRITE);
   snd_seq_port_info_set_type(port_info,
-			     SND_SEQ_PORT_TYPE_MIDI_GENERIC | SND_SEQ_PORT_TYPE_APPLICATION);
+                 SND_SEQ_PORT_TYPE_MIDI_GM      |
+                 SND_SEQ_PORT_TYPE_SYNTHESIZER  |
+                 SND_SEQ_PORT_TYPE_APPLICATION  |
+                 SND_SEQ_PORT_TYPE_MIDI_GENERIC);
   snd_seq_port_info_set_midi_channels(port_info, 16);
   snd_seq_port_info_set_port_specified(port_info, 1);
 
@@ -890,7 +902,7 @@ new_fluid_alsa_seq_driver(fluid_settings_t* settings,
   g_atomic_int_set(&dev->should_quit, 0);
 
   /* create the MIDI thread */
-  dev->thread = new_fluid_thread (fluid_alsa_seq_run, dev, realtime_prio, FALSE);
+  dev->thread = new_fluid_thread ("alsa-midi-seq", fluid_alsa_seq_run, dev, realtime_prio, FALSE);
 
   if (portname) FLUID_FREE (portname);
   if (id) FLUID_FREE (id);

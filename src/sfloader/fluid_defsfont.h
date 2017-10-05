@@ -5,16 +5,16 @@
  * SoundFont loading code borrowed from Smurf SoundFont Editor by Josh Green
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 2.1 of
  * the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
@@ -311,16 +311,16 @@ SFData *sfload_file (const char * fname);
  * Copyright (C) 1995-1997  Peter Mattis, Spencer Kimball and Josh MacDonald
  *
  * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
+ * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the GNU
- * Library General Public License for more details.
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU Library General Public
+ * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02110-1301, USA.
@@ -375,7 +375,7 @@ typedef struct _fluid_inst_zone_t fluid_inst_zone_t;
 
  */
 
-fluid_sfloader_t* new_fluid_defsfloader(void);
+fluid_sfloader_t* new_fluid_defsfloader(fluid_settings_t* settings);
 int delete_fluid_defsfloader(fluid_sfloader_t* loader);
 fluid_sfont_t* fluid_defsfloader_load(fluid_sfloader_t* loader, const char* filename);
 
@@ -405,13 +405,18 @@ struct _fluid_defsfont_t
   short* sampledata;        /* the sample data, loaded in ram */
   fluid_list_t* sample;      /* the samples in this soundfont */
   fluid_defpreset_t* preset; /* the presets of this soundfont */
+  int mlock;                 /* Should we try memlock (avoid swapping)? */
 
   fluid_preset_t iter_preset;        /* preset interface used in the iteration */
   fluid_defpreset_t* iter_cur;       /* the current preset in the iteration */
+
+  fluid_preset_t** preset_stack; /* List of presets that are available to use */
+  int preset_stack_capacity;     /* Length of preset_stack array */
+  int preset_stack_size;         /* Current number of items in the stack */
 };
 
 
-fluid_defsfont_t* new_fluid_defsfont(void);
+fluid_defsfont_t* new_fluid_defsfont(fluid_settings_t* settings);
 int delete_fluid_defsfont(fluid_defsfont_t* sfont);
 int fluid_defsfont_load(fluid_defsfont_t* sfont, const char* file);
 char* fluid_defsfont_get_name(fluid_defsfont_t* sfont);
