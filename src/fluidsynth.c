@@ -34,6 +34,7 @@
 
 #if defined(HAVE_GETOPT_H)
 #include <getopt.h>
+#define GETOPT_SUPPORT 1
 #endif
 
 #include "fluidsynth.h"
@@ -66,15 +67,6 @@ static fluid_cmd_handler_t* newclient(void* data, char* addr);
 fluid_cmd_handler_t* cmd_handler = NULL;
 int option_help = 0;		/* set to 1 if "-o help" is specified */
 
-/*
- * support for the getopt function
- */
-#if defined(HAVE_GETOPT_H)
-#define GETOPT_SUPPORT 1
-int getopt(int argc, char * const argv[], const char *optstring);
-extern char *optarg;
-extern int optind, opterr, optopt;
-#endif
 
 /* Process a command line option -o setting=value, for example: -o synth.polyhony=16 */
 void process_o_cmd_line_option(fluid_settings_t* settings, char* optarg)
@@ -774,7 +766,7 @@ int main(int argc, char** argv)
 
  cleanup:
 
-#if !defined(MACINTOSH) && !defined(WIN32)
+#if !defined(MACINTOSH)
   if (server != NULL) {
     /* if the user typed 'quit' in the shell, kill the server */
     if (!interactive) {
@@ -851,7 +843,7 @@ void
 print_welcome()
 {
   printf("FluidSynth version %s\n"
-	 "Copyright (C) 2000-2017 Peter Hanappe and others.\n"
+	 "Copyright (C) 2000-2018 Peter Hanappe and others.\n"
 	 "Distributed under the LGPL license.\n"
 	 "SoundFont(R) is a registered trademark of E-mu Systems, Inc.\n\n",
 	 FLUIDSYNTH_VERSION);

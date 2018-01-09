@@ -350,6 +350,7 @@ fluid_source(fluid_cmd_handler_t* handler, const char *filename)
 {
   int file;
   fluid_shell_t shell;
+  int result;
 
 #ifdef WIN32
   file = _open(filename, _O_RDONLY);
@@ -360,7 +361,15 @@ fluid_source(fluid_cmd_handler_t* handler, const char *filename)
     return file;
   }
   fluid_shell_init(&shell, NULL, handler, file, fluid_get_stdout());
-  return fluid_shell_run(&shell);
+  result = fluid_shell_run(&shell);
+
+#ifdef WIN32
+  _close(file);
+#else
+  close(file);
+#endif
+
+  return result;
 }
 
 /**
@@ -1237,7 +1246,7 @@ fluid_handle_tunings(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t ou
 int
 fluid_handle_dumptuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t out)
 {
-  int bank, prog, i;
+  int bank, prog, i, res;
   double pitch[128];
   char name[256];
 
@@ -1266,7 +1275,11 @@ fluid_handle_dumptuning(fluid_synth_t* synth, int ac, char** av, fluid_ostream_t
     return -1;
   };
 
-  fluid_synth_tuning_dump(synth, bank, prog, name, 256, pitch);
+  res = fluid_synth_tuning_dump(synth, bank, prog, name, 256, pitch);
+  if (FLUID_OK != res) {
+    fluid_ostream_printf(out, "Tuning %03d-%03d does not exist.\n", bank, prog);
+    return -1;
+  }
 
   fluid_ostream_printf(out, "%03d-%03d %s:\n", bank, prog, name);
 

@@ -96,23 +96,23 @@ fluid_event_set_time(fluid_event_t* evt, unsigned int time)
 }
 
 /**
- * Set source of a sequencer event (DOCME).
+ * Set source of a sequencer event. \c src must be a unique sequencer ID or -1 if not set.
  * @param evt Sequencer event structure
- * @param src DOCME
+ * @param src Unique sequencer ID
  */
 void
-fluid_event_set_source(fluid_event_t* evt, short src)
+fluid_event_set_source(fluid_event_t* evt, fluid_seq_id_t src)
 {
 	evt->src = src;
 }
 
 /**
- * Set destination of a sequencer event (DOCME).
+ * Set destination of this sequencer event, i.e. the sequencer client this event will be sent to. \c dest must be a unique sequencer ID.
  * @param evt Sequencer event structure
- * @param dest DOCME
+ * @param dest The destination unique sequencer ID
  */
 void
-fluid_event_set_dest(fluid_event_t* evt, short dest)
+fluid_event_set_dest(fluid_event_t* evt, fluid_seq_id_t dest)
 {
 	evt->dest = dest;
 }
@@ -120,7 +120,7 @@ fluid_event_set_dest(fluid_event_t* evt, short dest)
 /**
  * Set a sequencer event to be a timer event.
  * @param evt Sequencer event structure
- * @param data DOCME
+ * @param data User supplied data pointer
  */
 void
 fluid_event_timer(fluid_event_t* evt, void* data)
@@ -165,7 +165,7 @@ fluid_event_noteoff(fluid_event_t* evt, int channel, short key)
  * @param channel MIDI channel number
  * @param key MIDI note number (0-127)
  * @param vel MIDI velocity value (0-127)
- * @param duration Duration of note (DOCME units?)
+ * @param duration Duration of note in the time scale used by the sequencer (by default milliseconds)
  */
 void
 fluid_event_note(fluid_event_t* evt, int channel, short key, short vel, unsigned int duration)
@@ -249,10 +249,9 @@ fluid_event_program_select(fluid_event_t* evt, int channel,
 }
 
 /**
- * Set a sequencer event to be an any control change event.
+ * Set a sequencer event to be an any control change event (for internal use).
  * @param evt Sequencer event structure
  * @param channel MIDI channel number
- * DOCME
  */
 void
 fluid_event_any_control_change(fluid_event_t* evt, int channel)
@@ -281,7 +280,7 @@ fluid_event_pitch_bend(fluid_event_t* evt, int channel, int pitch)
  * Set a sequencer event to be a pitch wheel sensitivity event.
  * @param evt Sequencer event structure
  * @param channel MIDI channel number
- * @param value MIDI pitch wheel sensitivity value (DOCME units?)
+ * @param value MIDI pitch wheel sensitivity value in semitones
  */
 void
 fluid_event_pitch_wheelsens(fluid_event_t* evt, int channel, short value)
@@ -328,7 +327,7 @@ fluid_event_sustain(fluid_event_t* evt, int channel, short val)
  * @param evt Sequencer event structure
  * @param channel MIDI channel number
  * @param control MIDI control number (0-127)
- * @param val MIDI control value (0-16383 DOCME is that true?)
+ * @param val MIDI control value (0-127)
  */
 void
 fluid_event_control_change(fluid_event_t* evt, int channel, short control, short val)
@@ -460,9 +459,10 @@ int fluid_event_get_type(fluid_event_t* evt)
 }
 
 /**
+ * @internal
  * Get the time field from a sequencer event structure.
  * @param evt Sequencer event structure
- * @return Time value (DOCME units?)
+ * @return Time value
  */
 unsigned int fluid_event_get_time(fluid_event_t* evt)
 {
@@ -470,21 +470,21 @@ unsigned int fluid_event_get_time(fluid_event_t* evt)
 }
 
 /**
- * Get the source field from a sequencer event structure.
+ * Get the source sequencer client from a sequencer event structure.
  * @param evt Sequencer event structure
- * @return DOCME
+ * @return source field of the sequencer event
  */
-short fluid_event_get_source(fluid_event_t* evt)
+fluid_seq_id_t fluid_event_get_source(fluid_event_t* evt)
 {
 	return evt->src;
 }
 
 /**
- * Get the dest field from a sequencer event structure.
+ * Get the dest sequencer client from a sequencer event structure.
  * @param evt Sequencer event structure
- * @return DOCME
+ * @return dest field of the sequencer event
  */
-short fluid_event_get_dest(fluid_event_t* evt)
+fluid_seq_id_t fluid_event_get_dest(fluid_event_t* evt)
 {
 	return evt->dest;
 }
@@ -492,7 +492,7 @@ short fluid_event_get_dest(fluid_event_t* evt)
 /**
  * Get the MIDI channel field from a sequencer event structure.
  * @param evt Sequencer event structure
- * @return MIDI channel number (DOCME 0-15 or more?)
+ * @return MIDI zero-based channel number
  */
 int fluid_event_get_channel(fluid_event_t* evt)
 {
@@ -561,7 +561,7 @@ void* fluid_event_get_data(fluid_event_t* evt)
 /**
  * Get the duration field from a sequencer event structure.
  * @param evt Sequencer event structure
- * @return Note duration value (DOCME units?)
+ * @return Note duration value in the time scale used by the sequencer (by default milliseconds)
  *
  * Used by the #FLUID_SEQ_NOTE event type.
  */

@@ -13,7 +13,7 @@
 .\" along with this program; see the file LICENSE.  If not, write to
 .\" the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 .\"
-.TH FluidSynth 1 "Oct 14, 2017"
+.TH FluidSynth 1 "Jan 2, 2018"
 .\" Please update the above date whenever this man page is modified.
 .\"
 .\" Some roff macros, for reference:
@@ -298,7 +298,7 @@ OSS driver output device.
 PortAudio driver output device. Available options depends on system.
 .TP
 .B audio.pulseaudio.adjust-latency BOOL  [def=True]
-Increases the latency dynamically if PulseAudio suggests so.
+If TRUE initializes the maximum length of the audio buffer to the highest supported value and increases the latency dynamically if PulseAudio suggests so. Else uses a buffer with length of audio.period-size.
 .TP
 .B audio.pulseaudio.device  STR   [def='default']
 PulseAudio driver output device.

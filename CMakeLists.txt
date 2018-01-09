@@ -29,7 +29,7 @@ set ( PACKAGE "fluidsynth" )
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 1 )
 set ( FLUIDSYNTH_VERSION_MINOR 1 )
-set ( FLUIDSYNTH_VERSION_MICRO 8 )
+set ( FLUIDSYNTH_VERSION_MICRO 9 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -43,8 +43,8 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # if any interfaces have been removed/changed (compatibility broken): AGE=0
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 1 )
-set ( LIB_VERSION_AGE 6 )
-set ( LIB_VERSION_REVISION 1 )
+set ( LIB_VERSION_AGE 7 )
+set ( LIB_VERSION_REVISION 0 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -88,11 +88,15 @@ if ( CMAKE_SYSTEM MATCHES "OS2" )
 endif ( CMAKE_SYSTEM MATCHES "OS2" )
 
 # Initialize the library directory name suffix.
+if (NOT MINGW)
 if ( CMAKE_SIZEOF_VOID_P EQUAL 8 )
   set ( _init_lib_suffix "64" )
 else ( CMAKE_SIZEOF_VOID_P EQUAL 8 )
   set ( _init_lib_suffix "" )
 endif ( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+else ()
+  set ( _init_lib_suffix "" )
+endif()
 set ( LIB_SUFFIX ${_init_lib_suffix} CACHE STRING
       "library directory name suffix (32/64/nothing)" )
 mark_as_advanced ( LIB_SUFFIX )
@@ -301,10 +305,10 @@ endif ( CMAKE_BUILD_TYPE MATCHES "Debug" )
 
 if(NOT enable-pkgconfig)
 
-    FIND_LIBRARY( GLIB_LIB NAMES glib glib-2.0 PATH GLIB_LIBRARY_DIR NO_DEFAULT_PATH)
-    FIND_LIBRARY( GTHREAD_LIB NAMES gthread gthread-2.0 PATH GTHREAD_LIBRARY_DIR NO_DEFAULT_PATH )
-    FIND_PATH( GLIBH_DIR glib.h PATH GLIB_INCLUDE_DIR NO_DEFAULT_PATH )
-    FIND_PATH( GLIBCONF_DIR glibconfig.h PATH GLIBCONF_INCLUDE_DIR NO_DEFAULT_PATH )
+    FIND_LIBRARY( GLIB_LIB NAMES glib glib-2.0 PATH GLIB_LIBRARY_DIR )
+    FIND_LIBRARY( GTHREAD_LIB NAMES gthread gthread-2.0 PATH GTHREAD_LIBRARY_DIR )
+    FIND_PATH( GLIBH_DIR glib.h PATH GLIB_INCLUDE_DIR )
+    FIND_PATH( GLIBCONF_DIR glibconfig.h PATH GLIBCONF_INCLUDE_DIR )
     
     IF( GLIB_LIB MATCHES "GLIB_LIB-NOTFOUND" OR
             GTHREAD_LIB MATCHES "GTHREAD_LIB-NOTFOUND" OR

@@ -2017,6 +2017,11 @@ fluid_synth_program_change(fluid_synth_t* synth, int chan, int prognum)
  * @param chan MIDI channel number (0 to MIDI channel count - 1)
  * @param bank MIDI bank number
  * @return FLUID_OK on success, FLUID_FAILED otherwise
+ * @note This function does not change the instrument currently assigned to \c chan,
+ * as it is usually called prior to fluid_synth_program_change(). If you still want
+ * instrument changes to take effect immediately, call fluid_synth_program_reset()
+ * after having set up the bank configuration.
+ * 
  */
 int
 fluid_synth_bank_select(fluid_synth_t* synth, int chan, unsigned int bank)
@@ -2034,6 +2039,10 @@ fluid_synth_bank_select(fluid_synth_t* synth, int chan, unsigned int bank)
  * @param chan MIDI channel number (0 to MIDI channel count - 1)
  * @param sfont_id ID of a loaded SoundFont
  * @return FLUID_OK on success, FLUID_FAILED otherwise
+ * @note This function does not change the instrument currently assigned to \c chan,
+ * as it is usually called prior to fluid_synth_bank_select() or fluid_synth_program_change().
+ * If you still want instrument changes to take effect immediately, call fluid_synth_program_reset()
+ * after having selected the soundfont.
  */
 int
 fluid_synth_sfont_select(fluid_synth_t* synth, int chan, unsigned int sfont_id)
@@ -2408,7 +2417,7 @@ fluid_synth_get_internal_bufsize(fluid_synth_t* synth)
 }
 
 /**
- * Resend a bank select and a program change for every channel.
+ * Resend a bank select and a program change for every channel and assign corresponding instruments.
  * @param synth FluidSynth instance
  * @return FLUID_OK on success, FLUID_FAILED otherwise
  *
@@ -2419,6 +2428,7 @@ int
 fluid_synth_program_reset(fluid_synth_t* synth)
 {
   int i, prog;
+  fluid_return_val_if_fail (synth != NULL, FLUID_FAILED);
   fluid_synth_api_enter(synth);
   /* try to set the correct presets */
   for (i = 0; i < synth->midi_channels; i++){
@@ -2574,10 +2584,10 @@ fluid_synth_nwrite_float(fluid_synth_t* synth, int len,
     {
 #ifdef WITH_FLOAT
       if(fx_left != NULL)
-        FLUID_MEMCPY(fx_left[i + count], fx_left_in[i], bytes);
+        FLUID_MEMCPY(fx_left[i] + count, fx_left_in[i], bytes);
       
       if(fx_right != NULL)
-        FLUID_MEMCPY(fx_right[i + count], fx_right_in[i], bytes);
+        FLUID_MEMCPY(fx_right[i] + count, fx_right_in[i], bytes);
 #else //WITH_FLOAT
       int j;
       if(fx_left != NULL) {
@@ -3191,10 +3201,10 @@ fluid_synth_start_voice(fluid_synth_t* synth, fluid_voice_t* voice)
 }
 
 /**
- * Add a SoundFont loader interface.
+ * Add a SoundFont loader to the synth. This function takes ownership of \c loader
+ * and frees it automatically upon \c synth destruction.
  * @param synth FluidSynth instance
- * @param loader Loader API structure, used directly and should remain allocated
- *   as long as the synth instance is used.
+ * @param loader Loader API structure
  *
  * SoundFont loaders are used to add custom instrument loading to FluidSynth.
  * The caller supplied functions for loading files, allocating presets,
@@ -3224,9 +3234,9 @@ fluid_synth_add_sfloader(fluid_synth_t* synth, fluid_sfloader_t* loader)
  * stack. Presets are searched starting from the SoundFont on the
  * top of the stack, working the way down the stack until a preset is found.
  *
- * @param synth SoundFont instance
+ * @param synth FluidSynth instance
  * @param filename File to load
- * @param reset_presets TRUE to re-assign presets for all MIDI channels
+ * @param reset_presets TRUE to re-assign presets for all MIDI channels (equivalent to calling fluid_synth_program_reset())
  * @return SoundFont ID on success, FLUID_FAILED on error
  */
 int
@@ -3297,7 +3307,7 @@ new_fluid_sfont_info (fluid_synth_t *synth, fluid_sfont_t *sfont)
 
 /**
  * Unload a SoundFont.
- * @param synth SoundFont instance
+ * @param synth FluidSynth instance
  * @param id ID of SoundFont to unload
  * @param reset_presets TRUE to re-assign presets for all MIDI channels
  * @return FLUID_OK on success, FLUID_FAILED on error
@@ -3386,7 +3396,7 @@ fluid_synth_sfunload_callback(void* data, unsigned int msec)
 
 /**
  * Reload a SoundFont.  The SoundFont retains its ID and index on the SoundFont stack.
- * @param synth SoundFont instance
+ * @param synth FluidSynth instance
  * @param id ID of SoundFont to reload
  * @return SoundFont ID on success, FLUID_FAILED on error
  */
@@ -4892,6 +4902,9 @@ fluid_synth_set_gen_LOCAL (fluid_synth_t* synth, int chan, int param, float valu
  *   generator effect range (scaled and shifted as necessary).
  * @return FLUID_OK on success, FLUID_FAILED otherwise
  * @since 1.1.0
+ * 
+ * @deprecated As of 1.1.9 this function is deprecated, because there doesn't seem
+ * to be a use-case for it.
  *
  * This function allows for setting all effect parameters in real time on a
  * MIDI channel.  Setting absolute to non-zero will cause the value to override
@@ -5059,7 +5072,9 @@ fluid_synth_stop_LOCAL (fluid_synth_t *synth, unsigned int id)
 }
 
 /**
- * Offset the bank numbers of a loaded SoundFont.
+ * Offset the bank numbers of a loaded SoundFont, i.e.\ subtract
+ * \c offset from any bank number when assigning instruments.
+ * 
  * @param synth FluidSynth instance
  * @param sfont_id ID of a loaded SoundFont
  * @param offset Bank offset value to apply to all instruments

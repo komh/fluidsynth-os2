@@ -32,6 +32,10 @@ include_directories (
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_BINARY_DIR}/include
     ${PTHREADS_INCLUDE_DIR}
+)
+
+include_directories (
+    SYSTEM
     ${GLIB_INCLUDEDIR}
     ${GLIB_INCLUDE_DIRS}
 )
@@ -76,7 +80,7 @@ if ( PORTAUDIO_SUPPORT )
 endif ( PORTAUDIO_SUPPORT )
 
 if ( WINDOWS_SUPPORT )
-  set ( fluid_windows_SOURCES fluid_dll.c drivers/fluid_dsound.c drivers/fluid_winmidi.c )
+  set ( fluid_windows_SOURCES drivers/fluid_dsound.c drivers/fluid_winmidi.c )
 endif ( WINDOWS_SUPPORT )
 
 if ( OSS_SUPPORT )
@@ -269,6 +273,15 @@ elseif ( OS2 )
         OUTPUT_NAME "fluidsynth"
         VERSION ${LIB_VERSION_INFO}
         SOVERSION ${LIB_VERSION_CURRENT}
+    )
+elseif ( WIN32 )
+  set_target_properties ( libfluidsynth
+    PROPERTIES
+      ARCHIVE_OUTPUT_NAME "fluidsynth"
+      PREFIX "lib"
+      OUTPUT_NAME "fluidsynth-${LIB_VERSION_CURRENT}"
+      VERSION ${LIB_VERSION_INFO}
+      SOVERSION ${LIB_VERSION_CURRENT}
     )
 else ( MACOSX_FRAMEWORK )
   set_target_properties ( libfluidsynth
