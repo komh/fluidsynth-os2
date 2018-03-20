@@ -6,7 +6,7 @@ if ( WIN32 )
   set (DEFAULT_SOUNDFONT "C:\\\\soundfonts\\\\default.sf2" CACHE STRING
        "Default soundfont file")
 else ( WIN32 )
-  set (DEFAULT_SOUNDFONT "share/soundfonts/default.sf2" CACHE STRING
+  set (DEFAULT_SOUNDFONT "${CMAKE_INSTALL_PREFIX}/share/soundfonts/default.sf2" CACHE STRING
        "Default soundfont file")
 endif ( WIN32 )
 mark_as_advanced (DEFAULT_SOUNDFONT)
@@ -31,7 +31,7 @@ set (SBIN_INSTALL_DIR "sbin" CACHE STRING
 mark_as_advanced (SBIN_INSTALL_DIR) 
 
 # LIB_INSTALL_DIR - the directory where libraries will be installed
-set (LIB_INSTALL_DIR "lib" CACHE STRING "The install dir for libraries")
+set (LIB_INSTALL_DIR "lib${LIB_SUFFIX}" CACHE STRING "The install dir for libraries")
 mark_as_advanced (LIB_INSTALL_DIR) 
 
 # INCLUDE_INSTALL_DIR - the install dir for header files

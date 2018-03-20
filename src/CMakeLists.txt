@@ -206,8 +206,25 @@ set ( public_HEADERS
 )
 
 set ( public_main_HEADER
-    ${CMAKE_SOURCE_DIR}/include/fluidsynth.h
+    ${CMAKE_BINARY_DIR}/include/fluidsynth.h
 )
+
+if ( WIN32 AND NOT MINGW )
+include(generate_product_version)
+generate_product_version(
+    VersionFilesOutputVariable
+    NAME "Fluidsynth"
+    BUNDLE "Fluidsynth"
+    VERSION_MAJOR ${FLUIDSYNTH_VERSION_MAJOR}
+    VERSION_MINOR ${FLUIDSYNTH_VERSION_MINOR}
+    VERSION_PATCH ${FLUIDSYNTH_VERSION_MICRO}
+    VERSION_REVISION 0
+    COMMENTS "Fluidsynth"
+    COMPANY_NAME "Fluidsynth LGPL"
+    ORIGINAL_FILENAME "libfluidsynth.dll"
+    FILE_DESCRIPTION "Fluidsynth"
+)
+endif ( WIN32 AND NOT MINGW )
 
 link_directories (
     ${GLIB_LIBDIR}
@@ -251,6 +268,7 @@ add_library ( libfluidsynth
     ${libfluidsynth_SOURCES}
     ${public_HEADERS}
     ${public_main_HEADER}
+    ${VersionFilesOutputVariable}
 )
 
 if ( MACOSX_FRAMEWORK )
@@ -343,8 +361,8 @@ if ( MACOSX_FRAMEWORK )
 else ( MACOSX_FRAMEWORK )
   install ( TARGETS fluidsynth libfluidsynth
     RUNTIME DESTINATION ${BIN_INSTALL_DIR}
-    LIBRARY DESTINATION ${LIB_INSTALL_DIR}${LIB_SUFFIX}
-    ARCHIVE DESTINATION ${LIB_INSTALL_DIR}${LIB_SUFFIX}
+    LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+    ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
 )
 endif ( MACOSX_FRAMEWORK )
 
