@@ -1,25 +1,31 @@
-[![Build Status](https://travis-ci.org/FluidSynth/fluidsynth.svg?branch=master)](https://travis-ci.org/FluidSynth/fluidsynth)
 
-Introduction
-============
+# FluidSynth
 
-FluidSynth is a software real-time synthesizer based on the
-Soundfont 2 specifications.
+| Build Status | glib < 2.30 | glib >= 2.30 |
+|---|---|---|
+| Linux/MacOSX| n.a. | [![Build Status Travis](https://travis-ci.org/FluidSynth/fluidsynth.svg?branch=master)](https://travis-ci.org/FluidSynth/fluidsynth/branches) |
+| Windows | [![Build status Appveyor](https://ci.appveyor.com/api/projects/status/n24ybk0dmttjwdk2/branch/master?svg=true)](https://ci.appveyor.com/project/derselbst/fluidsynth/branch/master) | [![Build status](https://ci.appveyor.com/api/projects/status/anbmtebt5uk4q1it/branch/master?svg=true)](https://ci.appveyor.com/project/derselbst/fluidsynth-g2ouw/branch/master) |
+
+### FluidSynth is a software real-time synthesizer based on the Soundfont 2 specifications.
+
+[![OHLOH Project Stats](https://www.openhub.net/p/fluidsynth/widgets/project_thin_badge?format=gif)](https://www.openhub.net/p/fluidsynth)
 
 FluidSynth reads and handles MIDI events from the MIDI input
 device. It is the software analogue of a MIDI synthesizer. FluidSynth
 can also play midifiles using a Soundfont.
 
 
-Information on the web
-======================
+## Information on the web
 
 The place to look if you are looking for the latest information on
 FluidSynth is the web site at http://www.fluidsynth.org/.
 
+For documentation, please [see the links below](#documentation).
 
-Why did we do it
-================
+For information on how to build FluidSynth from source, please [see our wiki page](https://github.com/FluidSynth/fluidsynth/wiki/BuildingWithCMake).
+
+
+## Why did we do it
 
 The synthesizer grew out of a project, started by Samuel Bianchini and
 Peter Hanappe, and later joined by Johnathan Lee, that aimed at
@@ -53,8 +59,7 @@ synthesizer. That is why we developed FluidSynth.
 
 
 
-Design decisions
-================
+## Design decisions
 
 The synthesizer was designed to be as self-contained as possible for
 several reasons:
@@ -74,14 +79,17 @@ several reasons:
   on external code.
 
 
-Links
-=====
+## Links
 
-Home Page
+### Home Page
 
 - http://www.fluidsynth.org
 
-Documentation
+### Documentation
+
+- FluidSynth's wiki, https://github.com/FluidSynth/fluidsynth/wiki
+
+- FluidSynth's API documentation, http://www.fluidsynth.org/api/
 
 - Introduction to SoundFonts, by Josh Green,
   http://smurf.sourceforge.net/sfont_intro.php
@@ -96,7 +104,7 @@ Documentation
   http://www.midi.org/about-midi/dls/abtdls.htm
 
 
-Software SoundFont Synthesizers:
+### Software SoundFont Synthesizers:
 
 - LiveSynth Pro DXi and Crescendo from LiveUpdate (Win),
 http://www.livesynth.com/lspro.html
@@ -108,9 +116,9 @@ http://www.livesynth.com/lspro.html
 - Logic from eMagic, http://www.emagic.de
 
 
-Soundfont Editors
+### Soundfont Editors
 
-- Smurf Soundfont Editor by Josh Green (Linux), http://smurf.sourceforge.net
+- Project SWAMI by Josh Green (Linux), http://www.swamiproject.org/
 
 - Vienna SoundFont Editor by Creative Technology Ltd. (Win)
 
@@ -120,7 +128,7 @@ Soundfont Editors
 
     **Note:** We cannot recommend using Audio Compositor for creating or editing Soundfonts, as it generates files that violate the Soundfont2 spec (specifically the order of generators as defined in section 8.1.2) and are therefore unusable with fluidsynth!
 
-Conversion Tools
+### Conversion Tools
 
 - CDxtract from CDxtract  (Win), http://www.cdxtract.com
 
@@ -131,7 +139,7 @@ http://www.propellerheads.se/products/recycle/
 http://www.chickensys.com/translator
 
 
-Soundfont Databases
+### Soundfont Databases
 
 - HammerSound, http://www.hammersound.net
 

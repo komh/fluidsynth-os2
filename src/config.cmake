@@ -43,14 +43,11 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #cmakedefine HAVE_INTTYPES_H @HAVE_INTTYPES_H@
 
-/* whether or not we are supporting ladcca */
-#cmakedefine HAVE_LADCCA @HAVE_LADCCA@
+/* Define to 1 if you have the <io.h> header file. */
+#cmakedefine HAVE_IO_H @HAVE_IO_H@
 
 /* whether or not we are supporting lash */
 #cmakedefine HAVE_LASH @HAVE_LASH@
-
-/* Define to 1 if you have the `dl' library (-ldl). */
-#cmakedefine HAVE_LIBDL @HAVE_LIBDL@
 
 /* Define to 1 if you have the `MidiShare' library (-lMidiShare). */
 #cmakedefine HAVE_LIBMIDISHARE @HAVE_LIBMIDISHARE@
@@ -78,6 +75,9 @@
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #cmakedefine HAVE_NETINET_TCP_H @HAVE_NETINET_TCP_H@
+
+/* Define if compiling with openMP to enable parallel audio rendering */
+#cmakedefine HAVE_OPENMP @HAVE_OPENMP@
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #cmakedefine HAVE_PTHREAD_H @HAVE_PTHREAD_H@
@@ -145,6 +145,9 @@
 /* Define to enable IPV6 support */
 #cmakedefine IPV6_SUPPORT @IPV6_SUPPORT@
 
+/* Define to enable network support */
+#cmakedefine NETWORK_SUPPORT @NETWORK_SUPPORT@
+
 /* libsndfile has ogg vorbis support */
 #cmakedefine LIBSNDFILE_HASVORBIS @LIBSNDFILE_HASVORBIS@
 
@@ -190,11 +193,14 @@
 /* Define to 1 if you have the ANSI C header files. */
 #cmakedefine STDC_HEADERS @STDC_HEADERS@
 
+/* Soundfont to load for unit testing */
+#cmakedefine TEST_SOUNDFONT "@TEST_SOUNDFONT@"
+
+/* SF3 Soundfont to load for unit testing */
+#cmakedefine TEST_SOUNDFONT_SF3 "@TEST_SOUNDFONT_SF3@"
+
 /* Define to enable SIGFPE assertions */
 #cmakedefine TRAP_ON_FPE @TRAP_ON_FPE@
-
-/* Version number of package */
-#cmakedefine VERSION @FLUIDSYNTH_VERSION@
 
 /* Define to do all DSP in single floating point precision */
 #cmakedefine WITH_FLOAT @WITH_FLOAT@

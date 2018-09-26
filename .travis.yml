@@ -6,6 +6,10 @@ env:
     - CMAKE_FLAGS="-Denable-floats=1 -Denable-profiling=1"
     - CMAKE_FLAGS="-Denable-trap-on-fpe=1"
     - CMAKE_FLAGS="-Denable-fpe-check=1"
+    - CMAKE_FLAGS="-Denable-ipv6=0"
+    - CMAKE_FLAGS="-Denable-network=0"
+    - CMAKE_FLAGS="-Denable-aufile=0"
+    - CMAKE_FLAGS="-DBUILD_SHARED_LIBS=0"
 matrix:
   include:
     - os: linux
@@ -78,7 +82,7 @@ matrix:
             - ladspa-sdk
       env:
          - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
-         - CMAKE_FLAGS="-Denable-debug=1"
+         - CMAKE_FLAGS="-Denable-debug=1 -DCMAKE_C_FLAGS_DEBUG=-fuse-ld=gold"
 
     # works on Precise and Trusty
     - os: linux
@@ -116,6 +120,21 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+            - cmake-data
+            - cmake
+            - libglib2.0-0
+            - ladspa-sdk
+      env:
+        - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8"
+
+    # works on Precise and Trusty
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
             - llvm-toolchain-precise-3.8
           packages:
             - clang-3.8
@@ -137,6 +156,12 @@ matrix:
             - cmake-data
             - cmake
             - libglib2.0-0
+            - libsndfile-dev
+            - libasound2-dev
+            - libjack-dev
+            - portaudio19-dev
+            - libpulse-dev
+            - libdbus-glib-1-dev
             - ladspa-sdk
       env:
         - MATRIX_EVAL="CC=clang-3.9 && CXX=clang++-3.9"
@@ -174,25 +199,28 @@ matrix:
     - os: osx
       osx_image: xcode8
       env:
-        - MATRIX_EVAL="brew install gcc5 glib && CC=gcc-5 && CXX=g++-5"
+        - MATRIX_EVAL="brew install gcc5 glib gettext && brew link gettext && CC=gcc-5 && CXX=g++-5" # gettext should provide libintl, but doesnt work
 
     - os: osx
       osx_image: xcode8
       env:
-        - MATRIX_EVAL="brew install gcc6 glib && CC=gcc-6 && CXX=g++-6"
+        - MATRIX_EVAL="brew install gcc6 glib gettext && brew link gettext && CC=gcc-6 && CXX=g++-6"
 
     - os: osx
       osx_image: xcode8
       env:
-        - MATRIX_EVAL="brew install gcc glib libsndfile jack dbus-glib pulseaudio portaudio && CC=gcc-7 && CXX=g++-7"
+        - MATRIX_EVAL="brew install gcc glib gettext libsndfile jack dbus-glib pulseaudio portaudio && brew link gettext && CC=gcc-8 && CXX=g++-8"
 
 before_install:
     - if [ $TRAVIS_OS_NAME = linux ]; then sudo apt-get update; else brew update; fi
     - eval "${MATRIX_EVAL}"
     
 before_script:
+    - mkdir $HOME/fluidsynth_install/
     - mkdir build && cd build
     
 script:
-    - cmake ${CMAKE_FLAGS} "-Denable-portaudio=1" "-Denable-ladspa=1" "-DCMAKE_BUILD_TYPE=RelWithDebInfo" ..
+    - cmake -DCMAKE_INSTALL_PREFIX=$HOME/fluidsynth_install ${CMAKE_FLAGS} "-Denable-portaudio=1" "-Denable-ladspa=1" "-DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=1" ..
     - make -j4
+    - make check
+    - if [ $TRAVIS_OS_NAME = linux ]; then make install; fi # install only on linux, as CMAKE_INSTALL_PREFIX is ignored for frameworks on macosx and I cant tell whether that's correct or a bug.

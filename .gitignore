@@ -1,17 +1,40 @@
-*~
+build/
+
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
 *.a
-*.d
-*.dll
-*.exe
 *.la
 *.lo
-*.o
-*.obj
-*.res
-.deps
-.dirstamp
-.libs
-autom4te.cache
-config.log
-config.status
-stamp-h1
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# ProjectFiles
+*.pro.user*

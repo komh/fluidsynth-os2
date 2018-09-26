@@ -2,6 +2,7 @@ message( "\n**************************************************************\n"
          "Summary:" )
 
 message( "Build type:            " ${CMAKE_BUILD_TYPE} )
+message( "Install Prefix:        " ${CMAKE_INSTALL_PREFIX} )
 
 if ( LIBSNDFILE_SUPPORT )
   if ( LIBSNDFILE_HASVORBIS )
@@ -85,12 +86,6 @@ else ( LASH_SUPPORT )
   message ( "LASH support:          no" )
 endif ( LASH_SUPPORT )
 
-if ( LADCCA_SUPPORT )
-  message ( "LADCCA support:        yes (NOTE: GPL library)" )
-else ( LADCCA_SUPPORT )
-  message ( "LADCCA support:        no" )
-endif ( LADCCA_SUPPORT )
-
 if ( DART_SUPPORT )
   message ( "OS/2 DART support:     yes" )
 else ( DART_SUPPORT )
@@ -102,6 +97,12 @@ if ( AUFILE_SUPPORT )
 else ( AUFILE_SUPPORT )
   message ( "Audio to file driver:  no" )
 endif ( AUFILE_SUPPORT )
+
+if ( NETWORK_SUPPORT )
+  message ( "NETWORK Support :      yes" )
+else ( NETWORK_SUPPORT )
+  message ( "NETWORK Support :      no" )
+endif ( NETWORK_SUPPORT )
 
 if ( IPV6_SUPPORT )
   message ( "IPV6 Support :         yes" )
@@ -126,6 +127,12 @@ if ( WITH_PROFILING )
 else ( WITH_PROFILING )
   message ( "Profiling:             no" )
 endif ( WITH_PROFILING )
+
+if ( HAVE_OPENMP )
+  message ( "OpenMP 4.0:            yes" )
+else ( HAVE_OPENMP )
+  message ( "OpenMP 4.0:            no" )
+endif ( HAVE_OPENMP )
 
 if ( ENABLE_DEBUG )
   message ( "Debug:                 yes" )

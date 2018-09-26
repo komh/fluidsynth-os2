@@ -17,11 +17,9 @@
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA
  */
-#if HAVE_CONFIG_H
 #include "config.h"
-#endif
 
-#if defined(HAVE_LASH) || defined(HAVE_LADCCA)
+#if defined(HAVE_LASH)
 
 #include "fluid_synth.h"
 
@@ -30,24 +28,16 @@
 #ifdef HAVE_LASH
 
 #include <lash/lash.h>
-extern lash_client_t * fluid_lash_client;
+extern lash_client_t *fluid_lash_client;
 #define fluid_lash_args_t  lash_args_t
 #define fluid_lash_alsa_client_id  lash_alsa_client_id
 #define fluid_lash_jack_client_name  lash_jack_client_name
 
-#else		/* old deprecated LADCCA support which will be removed someday */
-
-#include <ladcca/ladcca.h>
-extern cca_client_t * fluid_lash_client;
-#define fluid_lash_args_t  cca_args_t
-#define fluid_lash_alsa_client_id  cca_alsa_client_id
-#define fluid_lash_jack_client_name  cca_jack_client_name
-
 #endif
 
 
-FLUIDSYNTH_API fluid_lash_args_t *fluid_lash_extract_args (int * pargc, char *** pargv);
-FLUIDSYNTH_API int fluid_lash_connect (fluid_lash_args_t * args);
-FLUIDSYNTH_API void fluid_lash_create_thread (fluid_synth_t * synth);
+FLUIDSYNTH_API fluid_lash_args_t *fluid_lash_extract_args(int *pargc, char  ***pargv);
+FLUIDSYNTH_API int fluid_lash_connect(fluid_lash_args_t *args);
+FLUIDSYNTH_API void fluid_lash_create_thread(fluid_synth_t *synth);
 
-#endif 		/* defined(HAVE_LASH) || defined(HAVE_LADCCA) */
+#endif 		/* defined(HAVE_LASH) */

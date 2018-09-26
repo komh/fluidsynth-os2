@@ -82,7 +82,7 @@ WARN_LOGFILE =
 #---------------------------------------------------------------------------
 # configuration options related to the input files
 #---------------------------------------------------------------------------
-INPUT = @CMAKE_SOURCE_DIR@/doc/fluidsynth-v11-devdoc.txt @CMAKE_SOURCE_DIR@/include @CMAKE_SOURCE_DIR@/include/fluidsynth @CMAKE_SOURCE_DIR@/src
+INPUT = @CMAKE_SOURCE_DIR@/doc/fluidsynth-v20-devdoc.txt @CMAKE_SOURCE_DIR@/include @CMAKE_SOURCE_DIR@/include/fluidsynth @CMAKE_SOURCE_DIR@/src @CMAKE_BINARY_DIR@/include/fluidsynth
 INPUT_ENCODING = UTF-8
 FILE_PATTERNS = *.c *.h
 RECURSIVE = YES
@@ -122,8 +122,9 @@ HTML_OUTPUT = html
 HTML_FILE_EXTENSION = .html
 HTML_HEADER = 
 HTML_FOOTER = 
-HTML_STYLESHEET = 
+HTML_EXTRA_STYLESHEET = @CMAKE_SOURCE_DIR@/doc/doxy_formula.css
 HTML_ALIGN_MEMBERS = YES
+HTML_EXTRA_FILES = @CMAKE_SOURCE_DIR@/doc/fluidsettings.xml @CMAKE_SOURCE_DIR@/doc/fluidsettings.xsl
 GENERATE_HTMLHELP = NO
 GENERATE_DOCSET = NO
 DOCSET_FEEDNAME = "Doxygen generated docs"
@@ -199,7 +200,7 @@ EXPAND_ONLY_PREDEF = NO
 SEARCH_INCLUDES = YES
 INCLUDE_PATH = 
 INCLUDE_FILE_PATTERNS = 
-PREDEFINED = 
+PREDEFINED = __DOXYGEN__
 EXPAND_AS_DEFINED = 
 SKIP_FUNCTION_MACROS = YES
 #---------------------------------------------------------------------------
