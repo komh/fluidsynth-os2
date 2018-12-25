@@ -28,11 +28,6 @@
 #include "fluid_sfont.h"
 #include "fluid_chan.h"
 
-#if WITH_READLINE
-#include <readline/readline.h>
-#include <readline/history.h>
-#endif
-
 /* FIXME: LADSPA used to need a lot of parameters on a single line. This is not
  * necessary anymore, so the limits below could probably be reduced */
 #define MAX_TOKENS 100
@@ -521,15 +516,6 @@ fluid_shell_run(void *data)
         {
             break;
         }
-
-#if WITH_READLINE
-
-        if(shell->in == fluid_get_stdin())
-        {
-            add_history(workline);
-        }
-
-#endif
 
         /* handle the command */
         switch(fluid_command(shell->handler, workline, shell->out))
@@ -1839,7 +1825,7 @@ fluid_handle_set(void *data, int ac, char **av, fluid_ostream_t out)
     {
     case FLUID_NO_TYPE:
         fluid_ostream_printf(out, "set: Parameter '%s' not found.\n", av[0]);
-        break;
+        return ret;
 
     case FLUID_INT_TYPE:
         if(fluid_settings_get_hints(handler->synth->settings, av[0], &hints) == FLUID_OK
@@ -1879,7 +1865,7 @@ fluid_handle_set(void *data, int ac, char **av, fluid_ostream_t out)
 
     if(ret == FLUID_FAILED)
     {
-        fluid_ostream_printf(out, "set: Value out of range.\n");
+        fluid_ostream_printf(out, "set: Value out of range. Try 'info %s' for valid ranges\n", av[0]);
     }
     
     if(!fluid_settings_is_realtime(handler->synth->settings, av[0]))
