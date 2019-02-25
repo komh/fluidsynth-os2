@@ -30,6 +30,12 @@
 #include "fluid_rtkit.h"
 #endif
 
+#if HAVE_PTHREAD_H && !defined(WIN32)
+// Do not include pthread on windows. It includes winsock.h, which collides with ws2tcpip.h from fluid_sys.h
+// It isn't need on Windows anyway.
+#include <pthread.h>
+#endif
+
 /* WIN32 HACK - Flag used to differentiate between a file descriptor and a socket.
  * Should work, so long as no SOCKET or file descriptor ends up with this bit set. - JG */
 #ifdef _WIN32
@@ -1343,12 +1349,12 @@ fluid_ostream_printf(fluid_ostream_t out, const char *format, ...)
         /* Handle write differently depending on if its a socket or file descriptor */
         if(!(out & FLUID_SOCKET_FLAG))
         {
-            return write(out, buf, FLUID_STRLEN(buf));
+            return write(out, buf, (unsigned int)FLUID_STRLEN(buf));
         }
 
 #ifdef NETWORK_SUPPORT
         /* Socket */
-        retval = send(out & ~FLUID_SOCKET_FLAG, buf, FLUID_STRLEN(buf), 0);
+        retval = send(out & ~FLUID_SOCKET_FLAG, buf, (int)FLUID_STRLEN(buf), 0);
         return retval != SOCKET_ERROR ? retval : -1;
 #else
         return -1;
