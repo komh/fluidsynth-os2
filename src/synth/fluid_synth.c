@@ -494,16 +494,13 @@ struct _fluid_sample_timer_t
  */
 static void fluid_sample_timer_process(fluid_synth_t *synth)
 {
-    fluid_sample_timer_t *st, *stnext;
+    fluid_sample_timer_t *st;
     long msec;
     int cont;
     unsigned int ticks = fluid_synth_get_ticks(synth);
 
-    for(st = synth->sample_timers; st; st = stnext)
+    for(st = synth->sample_timers; st; st = st->next)
     {
-        /* st may be freed in the callback below. cache it's successor now to avoid use after free */
-        stnext = st->next;
-
         if(st->isfinished)
         {
             continue;
@@ -529,7 +526,7 @@ fluid_sample_timer_t *new_fluid_sample_timer(fluid_synth_t *synth, fluid_timer_c
         return NULL;
     }
 
-    result->starttick = fluid_synth_get_ticks(synth);
+    fluid_sample_timer_reset(synth, result);
     result->isfinished = 0;
     result->data = data;
     result->callback = callback;
@@ -559,6 +556,10 @@ void delete_fluid_sample_timer(fluid_synth_t *synth, fluid_sample_timer_t *timer
     }
 }
 
+void fluid_sample_timer_reset(fluid_synth_t *synth, fluid_sample_timer_t *timer)
+{
+    timer->starttick = fluid_synth_get_ticks(synth);
+}
 
 /***************************************************************
  *
@@ -837,6 +838,7 @@ new_fluid_synth(fluid_settings_t *settings)
         goto error_recovery;
     }
 
+    FLUID_MEMSET(synth->channel, 0, synth->midi_channels * sizeof(*synth->channel));
     for(i = 0; i < synth->midi_channels; i++)
     {
         synth->channel[i] = new_fluid_channel(synth, i);
@@ -856,6 +858,7 @@ new_fluid_synth(fluid_settings_t *settings)
         goto error_recovery;
     }
 
+    FLUID_MEMSET(synth->voice, 0, synth->nvoice * sizeof(*synth->voice));
     for(i = 0; i < synth->nvoice; i++)
     {
         synth->voice[i] = new_fluid_voice(synth->eventhandler, synth->sample_rate);
@@ -1008,7 +1011,10 @@ delete_fluid_synth(fluid_synth_t *synth)
     {
         for(i = 0; i < synth->midi_channels; i++)
         {
-            fluid_channel_set_preset(synth->channel[i], NULL);
+            if(synth->channel[i] != NULL)
+            {
+                fluid_channel_set_preset(synth->channel[i], NULL);
+            }
         }
     }
 
