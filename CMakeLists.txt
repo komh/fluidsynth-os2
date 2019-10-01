@@ -29,7 +29,7 @@ set ( PACKAGE "fluidsynth" )
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 2 )
 set ( FLUIDSYNTH_VERSION_MINOR 0 )
-set ( FLUIDSYNTH_VERSION_MICRO 6 )
+set ( FLUIDSYNTH_VERSION_MICRO 7 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -43,8 +43,8 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # if any interfaces have been removed/changed (compatibility broken): AGE=0
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 2 )
-set ( LIB_VERSION_AGE 1 )
-set ( LIB_VERSION_REVISION 3 )
+set ( LIB_VERSION_AGE 2 )
+set ( LIB_VERSION_REVISION 0 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -189,7 +189,7 @@ if ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_
   endif (CMAKE_C_COMPILER_ID STREQUAL "Intel" )
 
   # prepend to build type specific flags, to allow users to override
-  set ( CMAKE_C_FLAGS_DEBUG "-g -DDEBUG -fsanitize=undefined ${CMAKE_C_FLAGS_DEBUG}" )
+  set ( CMAKE_C_FLAGS_DEBUG "-g ${CMAKE_C_FLAGS_DEBUG}" )
   
 endif ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Intel" )
 
@@ -385,10 +385,9 @@ if ( NOT CMAKE_BUILD_TYPE )
 endif ( NOT CMAKE_BUILD_TYPE )
 
 unset ( ENABLE_DEBUG CACHE )
-unset ( DEBUG CACHE )
 if ( CMAKE_BUILD_TYPE MATCHES "Debug" )
     set ( ENABLE_DEBUG 1 )
-    set ( DEBUG 1 )
+    add_definitions(-DDEBUG)
 endif ( CMAKE_BUILD_TYPE MATCHES "Debug" )
 
 # Additional targets to perform clang-format/clang-tidy
