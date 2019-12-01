@@ -66,6 +66,22 @@ void delete_fluid_oss_audio_driver(fluid_audio_driver_t *p);
 void fluid_oss_audio_driver_settings(fluid_settings_t *settings);
 #endif
 
+#if OPENSLES_SUPPORT
+fluid_audio_driver_t*
+new_fluid_opensles_audio_driver(fluid_settings_t* settings,
+		fluid_synth_t* synth);
+void delete_fluid_opensles_audio_driver(fluid_audio_driver_t* p);
+void fluid_opensles_audio_driver_settings(fluid_settings_t* settings);
+#endif
+
+#if OBOE_SUPPORT
+fluid_audio_driver_t*
+new_fluid_oboe_audio_driver(fluid_settings_t* settings,
+		fluid_synth_t* synth);
+void delete_fluid_oboe_audio_driver(fluid_audio_driver_t* p);
+void fluid_oboe_audio_driver_settings(fluid_settings_t* settings);
+#endif
+
 #if COREAUDIO_SUPPORT
 fluid_audio_driver_t *new_fluid_core_audio_driver(fluid_settings_t *settings,
         fluid_synth_t *synth);
@@ -81,6 +97,13 @@ fluid_audio_driver_t *new_fluid_dsound_audio_driver(fluid_settings_t *settings,
         fluid_synth_t *synth);
 void delete_fluid_dsound_audio_driver(fluid_audio_driver_t *p);
 void fluid_dsound_audio_driver_settings(fluid_settings_t *settings);
+#endif
+
+#if WAVEOUT_SUPPORT
+fluid_audio_driver_t *new_fluid_waveout_audio_driver(fluid_settings_t *settings,
+        fluid_synth_t *synth);
+void delete_fluid_waveout_audio_driver(fluid_audio_driver_t *p);
+void fluid_waveout_audio_driver_settings(fluid_settings_t *settings);
 #endif
 
 #if PORTAUDIO_SUPPORT
@@ -112,6 +135,13 @@ fluid_audio_driver_t *new_fluid_dart_audio_driver(fluid_settings_t *settings,
         fluid_synth_t *synth);
 void delete_fluid_dart_audio_driver(fluid_audio_driver_t *p);
 void fluid_dart_audio_driver_settings(fluid_settings_t *settings);
+#endif
+
+#if SDL2_SUPPORT
+fluid_audio_driver_t *new_fluid_sdl2_audio_driver(fluid_settings_t *settings,
+        fluid_synth_t *synth);
+void delete_fluid_sdl2_audio_driver(fluid_audio_driver_t *p);
+void fluid_sdl2_audio_driver_settings(fluid_settings_t *settings);
 #endif
 
 #if AUFILE_SUPPORT
