@@ -706,6 +706,7 @@ int main(int argc, char **argv)
 
         case 'v':
             fluid_settings_setint(settings, "synth.verbose", TRUE);
+            fluid_set_log_function(FLUID_DBG, fluid_default_log_function, NULL);
             break;
 
         case 'z':
@@ -1072,7 +1073,7 @@ void
 print_welcome()
 {
     printf("FluidSynth runtime version %s\n"
-           "Copyright (C) 2000-2019 Peter Hanappe and others.\n"
+           "Copyright (C) 2000-2020 Peter Hanappe and others.\n"
            "Distributed under the LGPL license.\n"
            "SoundFont(R) is a registered trademark of E-mu Systems, Inc.\n\n",
            fluid_version_str());
@@ -1161,7 +1162,7 @@ print_help(fluid_settings_t *settings)
     printf(" -T, --audio-file-type\n"
            "    Audio file type for fast rendering or aufile driver (\"help\" for list)\n");
     printf(" -v, --verbose\n"
-           "    Print out verbose messages about midi events\n");
+           "    Print out verbose messages about midi events (synth.verbose=1) as well as other debug messages\n");
     printf(" -V, --version\n"
            "    Show version of program\n");
     printf(" -z, --audio-bufsize=[size]\n"

@@ -406,8 +406,7 @@ fluid_isasciistring(char *s)
     /* From ctype.h */
 #define fluid_isascii(c)    (((c) & ~0x7f) == 0)
 
-    int i;
-    int len = (int) FLUID_STRLEN(s);
+    size_t i, len = FLUID_STRLEN(s);
 
     for(i = 0; i < len; i++)
     {
@@ -1457,7 +1456,7 @@ delete_fluid_track(fluid_track_t *track)
 int
 fluid_track_set_name(fluid_track_t *track, char *name)
 {
-    int len;
+    size_t len;
 
     if(track->name != NULL)
     {
@@ -2354,7 +2353,7 @@ delete_fluid_midi_parser(fluid_midi_parser_t *parser)
  * apps to abuse fluidsynth as midi parser, e.g. feeding it with rawmidi and pull out
  * the needed midi information using the getter functions of fluid_midi_event_t.
  * This parser however is incomplete as it e.g. only provides a limited buffer to
- * store and process SYSEX data (i.e. doesnt allow arbitrary lengths)
+ * store and process SYSEX data (i.e. doesn't allow arbitrary lengths)
  */
 fluid_midi_event_t *
 fluid_midi_parser_parse(fluid_midi_parser_t *parser, unsigned char c)

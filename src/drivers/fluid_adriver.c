@@ -294,7 +294,9 @@ find_fluid_audio_driver(fluid_settings_t *settings)
  * @return The new audio driver instance.
  *
  * Creates a new audio driver for a given \p synth instance with a defined set
- * of configuration \p settings.
+ * of configuration \p settings. The \p settings instance must be the same that
+ * you have passed to new_fluid_synth() when creating the \p synth instance.
+ * Otherwise the behaviour is undefined.
  *
  * @note As soon as an audio driver is created, the \p synth starts rendering audio.
  * This means that all necessary sound-setup should be completed after this point,
@@ -331,8 +333,10 @@ new_fluid_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
  * @return The new audio driver instance.
  *
  * Like new_fluid_audio_driver() but allows for custom audio processing before
- * audio is sent to audio driver.  It is the responsibility of the callback
- * \p func to render the audio into the buffers.
+ * audio is sent to audio driver. It is the responsibility of the callback
+ * \p func to render the audio into the buffers. If \p func uses a fluid_synth_t \p synth,
+ * the \p settings instance must be the same that you have passed to new_fluid_synth()
+ * when creating the \p synth instance. Otherwise the behaviour is undefined.
  *
  * @note Not as efficient as new_fluid_audio_driver().
  *
@@ -399,7 +403,7 @@ delete_fluid_audio_driver(fluid_audio_driver_t *driver)
  * By default all audio drivers fluidsynth has been compiled with are registered, so calling this function is optional.
  *
  * @warning This function may only be called if no thread is residing in fluidsynth's API and no instances of any kind
- * are alive (e.g. as it would be the case right after fluidsynth's inital creation). Else the behaviour is undefined.
+ * are alive (e.g. as it would be the case right after fluidsynth's initial creation). Else the behaviour is undefined.
  * Furtermore any attempt of using audio drivers that have not been registered is undefined behaviour!
  *
  * @param adrivers NULL-terminated array of audio drivers to register. Pass NULL to register all available drivers.

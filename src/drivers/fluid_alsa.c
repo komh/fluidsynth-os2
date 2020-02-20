@@ -218,11 +218,13 @@ new_fluid_alsa_audio_driver2(fluid_settings_t *settings,
 
         if(snd_pcm_hw_params_set_access(dev->pcm, hwparams, fluid_alsa_formats[i].access) < 0)
         {
+            FLUID_LOG(FLUID_DBG, "snd_pcm_hw_params_set_access() failed with audio format '%s'", fluid_alsa_formats[i].name);
             continue;
         }
 
         if(snd_pcm_hw_params_set_format(dev->pcm, hwparams, fluid_alsa_formats[i].format) < 0)
         {
+            FLUID_LOG(FLUID_DBG, "snd_pcm_hw_params_set_format() failed with audio format '%s'", fluid_alsa_formats[i].name);
             continue;
         }
 
@@ -291,7 +293,7 @@ new_fluid_alsa_audio_driver2(fluid_settings_t *settings,
 
     if(fluid_alsa_formats[i].name == NULL)
     {
-        FLUID_LOG(FLUID_ERR, "Failed to find a workable audio format");
+        FLUID_LOG(FLUID_ERR, "Failed to find an audio format supported by alsa");
         goto error_recovery;
     }
 
@@ -324,6 +326,7 @@ new_fluid_alsa_audio_driver2(fluid_settings_t *settings,
 
     if(!dev->thread)
     {
+        FLUID_LOG(FLUID_ERR, "Failed to start the alsa-audio thread.");
         goto error_recovery;
     }
 
@@ -375,7 +378,7 @@ static int fluid_alsa_handle_write_error(snd_pcm_t *pcm, int errval)
         snd_pcm_wait(pcm, 1);
         break;
 // on some BSD variants ESTRPIPE is defined as EPIPE.
-// not sure why, maybe because this version of alsa doesnt support
+// not sure why, maybe because this version of alsa doesn't support
 // suspending pcm streams. anyway, since EPIPE seems to be more
 // likely than ESTRPIPE, so ifdef it out in case.
 #if ESTRPIPE == EPIPE

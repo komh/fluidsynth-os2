@@ -385,7 +385,7 @@ fluid_synth_init(void)
                          );
     fluid_mod_set_source2(&default_pan_mod, 0, 0);                 /* No second source */
     fluid_mod_set_dest(&default_pan_mod, GEN_PAN);                 /* Target: pan */
-    /* Amount: 500. The SF specs $8.4.6, p. 55 syas: "Amount = 1000
+    /* Amount: 500. The SF specs $8.4.6, p. 55 says: "Amount = 1000
        tenths of a percent". The center value (64) corresponds to 50%,
        so it follows that amount = 50% x 1000/% = 500. */
     fluid_mod_set_amount(&default_pan_mod, 500.0);
@@ -2207,7 +2207,7 @@ fluid_synth_sysex_midi_tuning(fluid_synth_t *synth, const char *data, int len,
 }
 
 /**
- * Turn off all notes on a MIDI channel (put them into release phase).
+ * Turn off all voices that are playing on the given MIDI channel, by putting them into release phase.
  * @param synth FluidSynth instance
  * @param chan MIDI channel number (0 to MIDI channel count - 1), (chan=-1 selects all channels)
  * @return #FLUID_OK on success, #FLUID_FAILED otherwise
@@ -2257,7 +2257,7 @@ fluid_synth_all_notes_off_LOCAL(fluid_synth_t *synth, int chan)
 }
 
 /**
- * Immediately stop all notes on a MIDI channel (skips release phase).
+ * Immediately stop all voices on the given MIDI channel (skips release phase).
  * @param synth FluidSynth instance
  * @param chan MIDI channel number (0 to MIDI channel count - 1), (chan=-1 selects all channels)
  * @return #FLUID_OK on success, #FLUID_FAILED otherwise
@@ -4063,7 +4063,7 @@ fluid_synth_write_s16(fluid_synth_t *synth, int len,
     while(size);
 
     synth->cur = cur;
-    synth->dither_index = di;	/* keep dither buffer continous */
+    synth->dither_index = di;	/* keep dither buffer continuous */
 
     time = fluid_utime() - time;
     cpu_load = 0.5 * (fluid_atomic_float_get(&synth->cpu_load) + time * synth->sample_rate / len / 10000.0);
@@ -4114,7 +4114,7 @@ fluid_synth_dither_s16(int *dither_index, int len, const float *lin, const float
         }
     }
 
-    *dither_index = di;	/* keep dither buffer continous */
+    *dither_index = di;	/* keep dither buffer continuous */
 
     fluid_profile(FLUID_PROF_WRITE, prof_ref, 0, len);
 }
@@ -6229,7 +6229,7 @@ fluid_synth_set_gen_LOCAL(fluid_synth_t *synth, int chan, int param, float value
 }
 
 /**
- * Retrive the generator NRPN offset assigned to a MIDI channel.
+ * Retrieve the generator NRPN offset assigned to a MIDI channel.
  *
  * The value returned is in native units of the generator. By default, the offset is zero.
  * @param synth FluidSynth instance
@@ -6895,7 +6895,7 @@ fluid_synth_check_next_basic_channel(fluid_synth_t *synth, int basicchan, int mo
         {
             /* A value of 0 for val means all possible channels from basicchan to
             to the next basic channel -1 (if any).
-            When i reachs the next basic channel group, real_val will be
+            When i reaches the next basic channel group, real_val will be
             limited if it is possible */
             if(val == 0)
             {
@@ -7009,7 +7009,7 @@ fluid_synth_set_basic_channel_LOCAL(fluid_synth_t *synth, int basicchan, int mod
 }
 
 /**
- * Searchs a previous basic channel starting from chan.
+ * Searches a previous basic channel starting from chan.
  *
  * @param synth the synth instance.
  * @param chan starting index of the search (including chan).
@@ -7019,7 +7019,7 @@ static int fluid_synth_get_previous_basic_channel(fluid_synth_t *synth, int chan
 {
     for(; chan >= 0; chan--)
     {
-        /* searchs previous basic channel */
+        /* searches previous basic channel */
         if(synth->channel[chan]->mode &  FLUID_CHANNEL_BASIC)
         {
             /* chan is the previous basic channel */
@@ -7067,7 +7067,7 @@ int fluid_synth_get_basic_channel(fluid_synth_t *synth, int chan,
         val = synth->channel[basic_chan]->mode_val;
     }
 
-    /* returns the informations if they are requested */
+    /* returns the information if they are requested */
     if(basic_chan_out)
     {
         * basic_chan_out = basic_chan;

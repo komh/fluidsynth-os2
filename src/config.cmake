@@ -52,6 +52,9 @@
 /* Define to 1 if you have the <limits.h> header file. */
 #cmakedefine HAVE_LIMITS_H @HAVE_LIMITS_H@
 
+/* Define to 1 if you have the <linux/soundcard.h> header file. */
+#cmakedefine HAVE_LINUX_SOUNDCARD_H @HAVE_LINUX_SOUNDCARD_H@
+
 /* Define to 1 if you have the <machine/soundcard.h> header file. */
 #cmakedefine HAVE_MACHINE_SOUNDCARD_H @HAVE_MACHINE_SOUNDCARD_H@
 
@@ -136,7 +139,7 @@
 /* Define to enable network support */
 #cmakedefine NETWORK_SUPPORT @NETWORK_SUPPORT@
 
-/* Defined when fluidsynth is build in an automated enviornment, where no MSVC++ Runtime Debug Assertion dialogs should pop up */
+/* Defined when fluidsynth is build in an automated environment, where no MSVC++ Runtime Debug Assertion dialogs should pop up */
 #cmakedefine NO_GUI @NO_GUI@
 
 /* libinstpatch for DLS and GIG */

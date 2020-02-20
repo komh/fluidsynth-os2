@@ -893,7 +893,7 @@ static int process_sdta(SFData *sf, unsigned int size)
 
                 if(chunk.size > size)
                 {
-                    FLUID_LOG(FLUID_WARN, "SM24 exeeds SDTA chunk, ignoring SM24");
+                    FLUID_LOG(FLUID_WARN, "SM24 exceeds SDTA chunk, ignoring SM24");
                     goto ret; // no error
                 }
 
@@ -2121,7 +2121,6 @@ static int load_shdr(SFData *sf, unsigned int size)
         READB(sf, p->pitchadj);
         FSKIPW(sf); /* skip sample link */
         READW(sf, p->sampletype);
-        p->samfile = 0;
     }
 
     FSKIP(sf, SF_SHDR_SIZE); /* skip terminal shdr */
@@ -2476,7 +2475,7 @@ error_exit:
 /* Ogg Vorbis loading and decompression */
 #if LIBSNDFILE_SUPPORT
 
-/* Virtual file access rountines to allow loading individually compressed
+/* Virtual file access routines to allow loading individually compressed
  * samples from the Soundfont sample data chunk using the file callbacks
  * passing in during opening of the file */
 typedef struct _sfvio_data_t
@@ -2633,6 +2632,11 @@ static int fluid_sffile_read_vorbis(SFData *sf, unsigned int start_byte, unsigne
     {
         FLUID_LOG(FLUID_DBG, "Unsupported channel count %d in ogg sample", sfinfo.channels);
         goto error_exit;
+    }
+
+    if((sfinfo.format & SF_FORMAT_OGG) == 0)
+    {
+        FLUID_LOG(FLUID_WARN, "OGG sample is not OGG compressed, this is not officially supported");
     }
 
     wav_data = FLUID_ARRAY(short, sfinfo.frames * sfinfo.channels);

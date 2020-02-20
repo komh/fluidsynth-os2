@@ -85,7 +85,11 @@ static fluid_log_function_t fluid_log_function[LAST_LOG_LEVEL] =
     fluid_default_log_function,
     fluid_default_log_function,
     fluid_default_log_function,
+#ifdef DEBUG
     fluid_default_log_function
+#else
+    NULL
+#endif
 };
 static void *fluid_log_user_data[LAST_LOG_LEVEL] = { NULL };
 
@@ -149,9 +153,7 @@ fluid_default_log_function(int level, const char *message, void *data)
         break;
 
     case FLUID_DBG:
-#if DEBUG
         FLUID_FPRINTF(out, "%s: debug: %s\n", fluid_libname, message);
-#endif
         break;
 
     default:
@@ -234,7 +236,7 @@ void fluid_free(void* ptr)
  * @internal
  * @param str Pointer to a string pointer of source to tokenize.  Pointer gets
  *   updated on each invocation to point to beginning of next token.  Note that
- *   token char get's overwritten with a 0 byte.  String pointer is set to NULL
+ *   token char gets overwritten with a 0 byte.  String pointer is set to NULL
  *   when final token is returned.
  * @param delim String of delimiter chars.
  * @return Pointer to the next token or NULL if no more tokens.
@@ -513,7 +515,7 @@ void fluid_clear_fpe_i386(void)
  */
 
 #if WITH_PROFILING
-/* Profiling interface beetween profiling command shell and audio rendering API
+/* Profiling interface between profiling command shell and audio rendering API
   (FluidProfile_0004.pdf- 3.2.2).
   Macros are in defined in fluid_sys.h.
 */
@@ -692,8 +694,8 @@ static void fluid_profiling_print_load(double sample_rate, fluid_ostream_t out)
 * @param sample_rate the sample rate of audio output.
 * @param out output stream device.
 *
-* When print mode is 1, the function prints all the informations (see below).
-* When print mode is 0, the fonction prints only the cpu loads.
+* When print mode is 1, the function prints all the information (see below).
+* When print mode is 0, the function prints only the cpu loads.
 *
 * ------------------------------------------------------------------------------
 * Duration(microsecond) and cpu loads(%) (sr: 44100 Hz, sp: 22.68 microsecond)
