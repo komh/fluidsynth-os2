@@ -609,7 +609,7 @@ new_fluid_synth(fluid_settings_t *settings)
     char *important_channels;
     int i, nbuf, prio_level = 0;
     int with_ladspa = 0;
-    fluid_real_t sample_rate_min, sample_rate_max;
+    double sample_rate_min, sample_rate_max;
 
     /* initialize all the conversion tables and other stuff */
     if(fluid_atomic_int_compare_and_exchange(&fluid_synth_initialized, 0, 1))
@@ -789,7 +789,7 @@ new_fluid_synth(fluid_settings_t *settings)
     /* In an overflow situation, a new voice takes about 50 spaces in the queue! */
     synth->eventhandler = new_fluid_rvoice_eventhandler(synth->polyphony * 64,
                           synth->polyphony, nbuf, synth->effects_channels, synth->effects_groups,
-                          sample_rate_max, synth->sample_rate,
+                          (fluid_real_t)sample_rate_max, synth->sample_rate,
                           synth->cores - 1, prio_level);
 
     if(synth->eventhandler == NULL)
@@ -4527,14 +4527,13 @@ fluid_synth_kill_by_exclusive_class_LOCAL(fluid_synth_t *synth,
     for(i = 0; i < synth->polyphony; i++)
     {
         fluid_voice_t *existing_voice = synth->voice[i];
-        int existing_excl_class = fluid_voice_gen_value(existing_voice, GEN_EXCLUSIVECLASS);
 
         /* If voice is playing, on the same channel, has same exclusive
          * class and is not part of the same noteon event (voice group), then kill it */
 
         if(fluid_voice_is_playing(existing_voice)
                 && fluid_voice_get_channel(existing_voice) == fluid_voice_get_channel(new_voice)
-                && existing_excl_class == excl_class
+                && fluid_voice_gen_value(existing_voice, GEN_EXCLUSIVECLASS) == excl_class
                 && fluid_voice_get_id(existing_voice) != fluid_voice_get_id(new_voice))
         {
             fluid_voice_kill_excl(existing_voice);
@@ -6344,15 +6343,14 @@ int
 fluid_synth_start(fluid_synth_t *synth, unsigned int id, fluid_preset_t *preset,
                   int audio_chan, int chan, int key, int vel)
 {
-    int result;
-    fluid_defsfont_t *defsfont;
+    int result, dynamic_samples;
     fluid_return_val_if_fail(preset != NULL, FLUID_FAILED);
     fluid_return_val_if_fail(key >= 0 && key <= 127, FLUID_FAILED);
     fluid_return_val_if_fail(vel >= 1 && vel <= 127, FLUID_FAILED);
     FLUID_API_ENTRY_CHAN(FLUID_FAILED);
 
-    defsfont = fluid_sfont_get_data(preset->sfont);
-    if(defsfont->dynamic_samples)
+    fluid_settings_getint(fluid_synth_get_settings(synth), "synth.dynamic-sample-loading", &dynamic_samples);
+    if(dynamic_samples)
     {
         // The preset might not be currently used, thus its sample data may not be loaded.
         // This guard is to avoid a NULL deref in rvoice_write().
