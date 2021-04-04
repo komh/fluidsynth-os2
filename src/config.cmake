@@ -193,6 +193,9 @@
 /* Define to enable DirectSound driver */
 #cmakedefine DSOUND_SUPPORT @DSOUND_SUPPORT@
 
+/* Define to enable Windows WASAPI driver */
+#cmakedefine WASAPI_SUPPORT @WASAPI_SUPPORT@
+
 /* Define to enable Windows WaveOut driver */
 #cmakedefine WAVEOUT_SUPPORT @WAVEOUT_SUPPORT@
 
@@ -207,6 +210,9 @@
 
 /* Soundfont to load for unit testing */
 #cmakedefine TEST_SOUNDFONT "@TEST_SOUNDFONT@"
+
+/* Soundfont to load for UTF-8 unit testing */
+#cmakedefine TEST_SOUNDFONT_UTF8 "@TEST_SOUNDFONT_UTF8@"
 
 /* SF3 Soundfont to load for unit testing */
 #cmakedefine TEST_SOUNDFONT_SF3 "@TEST_SOUNDFONT_SF3@"

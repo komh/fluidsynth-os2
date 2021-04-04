@@ -222,9 +222,73 @@ void* fluid_alloc(size_t len)
 }
 
 /**
+ * Open a file with a UTF-8 string, even in Windows
+ * @param filename The name of the file to open
+ * @param mode The mode to open the file in
+ */
+FILE *fluid_fopen(const char *filename, const char *mode)
+{
+#if defined(WIN32)
+    wchar_t *wpath = NULL, *wmode = NULL;
+    FILE *file = NULL;
+    int length;
+    if ((length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filename, -1, NULL, 0)) == 0)
+    {
+        FLUID_LOG(FLUID_ERR, "Unable to perform MultiByteToWideChar() conversion for filename '%s'. Error was: '%s'", filename, fluid_get_windows_error());
+        errno = EINVAL;
+        goto error_recovery;
+    }
+    
+    wpath = FLUID_MALLOC(length * sizeof(wchar_t));
+    if (wpath == NULL)
+    {
+        FLUID_LOG(FLUID_PANIC, "Out of memory.");
+        errno = EINVAL;
+        goto error_recovery;
+    }
+
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filename, -1, wpath, length);
+
+    if ((length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, mode, -1, NULL, 0)) == 0)
+    {
+        FLUID_LOG(FLUID_ERR, "Unable to perform MultiByteToWideChar() conversion for mode '%s'. Error was: '%s'", mode, fluid_get_windows_error());
+        errno = EINVAL;
+        goto error_recovery;
+    }
+
+    wmode = FLUID_MALLOC(length * sizeof(wchar_t));
+    if (wmode == NULL)
+    {
+        FLUID_LOG(FLUID_PANIC, "Out of memory.");
+        errno = EINVAL;
+        goto error_recovery;
+    }
+
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, mode, -1, wmode, length);
+
+    file = _wfopen(wpath, wmode);
+
+error_recovery:
+    FLUID_FREE(wpath);
+    FLUID_FREE(wmode);
+
+    return file;
+#else
+    return fopen(filename, mode);
+#endif
+}
+
+/**
  * Convenience wrapper for free() that satisfies at least C90 requirements.
- * Especially useful when using fluidsynth with programming languages that do not provide malloc() and free().
- * @note Only use this function when the API documentation explicitly says so. Otherwise use adequate \c delete_fluid_* functions.
+ *
+ * @param ptr Pointer to memory region that should be freed
+ *
+ * Especially useful when using fluidsynth with programming languages that do not
+ * provide malloc() and free().
+ *
+ * @note Only use this function when the API documentation explicitly says so. Otherwise use
+ * adequate \c delete_fluid_* functions.
+ *
  * @since 2.0.7
  */
 void fluid_free(void* ptr)
@@ -446,7 +510,7 @@ fluid_thread_self_set_prio(int prio_level)
  *               Floating point exceptions
  *
  *  The floating point exception functions were taken from Ircam's
- *  jMax source code. http://www.ircam.fr/jmax
+ *  jMax source code. https://www.ircam.fr/jmax
  *
  *  FIXME: check in config for i386 machine
  *
@@ -980,7 +1044,7 @@ new_fluid_thread(const char *name, fluid_thread_func_t func, void *data, int pri
 #if OLD_GLIB_THREAD_API
 
     /* Make sure g_thread_init has been called.
-     * FIXME - Probably not a good idea in a shared library,
+     * Probably not a good idea in a shared library,
      * but what can we do *and* remain backwards compatible? */
     if(!g_thread_supported())
     {
@@ -1688,3 +1752,50 @@ FILE* fluid_file_open(const char* path, const char** errMsg)
     
     return handle;
 }
+
+fluid_long_long_t fluid_file_tell(FILE* f)
+{
+#ifdef WIN32
+    // On Windows, long is only a 32 bit integer. Thus ftell() does not support to handle files >2GiB.
+    // We should use _ftelli64() in this case, however its availability depends on MS CRT and might not be
+    // availble on WindowsXP, Win98, etc.
+    //
+    // The web recommends to fallback to _telli64() in this case. However, it's return value differs from
+    // _ftelli64() on Win10: https://github.com/FluidSynth/fluidsynth/pull/629#issuecomment-602238436
+    //
+    // Thus, we use fgetpos().
+    fpos_t pos;
+    if(fgetpos(f, &pos) != 0)
+    {
+        return (fluid_long_long_t)-1L;
+    }
+    return pos;
+#else
+    return ftell(f);
+#endif
+}
+
+#ifdef WIN32
+// not thread-safe!
+char* fluid_get_windows_error(void)
+{
+    static TCHAR err[1024];
+
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+                  NULL,
+                  GetLastError(),
+                  MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
+                  err,
+                  sizeof(err)/sizeof(err[0]),
+                  NULL);
+
+#ifdef _UNICODE
+    static char ascii_err[sizeof(err)];
+
+    WideCharToMultiByte(CP_UTF8, 0, err, -1, ascii_err, sizeof(ascii_err)/sizeof(ascii_err[0]), 0, 0);
+    return ascii_err;
+#else
+    return err;
+#endif
+}
+#endif

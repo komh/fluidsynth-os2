@@ -84,6 +84,10 @@ if ( DSOUND_SUPPORT )
   set ( fluid_dsound_SOURCES drivers/fluid_dsound.c )
 endif ( DSOUND_SUPPORT )
 
+if ( WASAPI_SUPPORT )
+  set ( fluid_wasapi_SOURCES drivers/fluid_wasapi.c )
+endif ( WASAPI_SUPPORT )
+
 if ( WAVEOUT_SUPPORT )
   set ( fluid_waveout_SOURCES drivers/fluid_waveout.c )
 endif ( WAVEOUT_SUPPORT )
@@ -204,7 +208,9 @@ set ( libfluidsynth_SOURCES
     midi/fluid_midi_router.c
     midi/fluid_midi_router.h
     midi/fluid_seqbind.c
+    midi/fluid_seqbind_notes.cpp
     midi/fluid_seq.c
+    midi/fluid_seq_queue.cpp
     drivers/fluid_adriver.c
     drivers/fluid_adriver.h
     drivers/fluid_mdriver.c
@@ -279,6 +285,7 @@ add_library ( libfluidsynth-OBJ OBJECT
     ${fluid_portaudio_SOURCES}
     ${fluid_pulse_SOURCES}
     ${fluid_dsound_SOURCES}
+    ${fluid_wasapi_SOURCES}
     ${fluid_waveout_SOURCES}
     ${fluid_winmidi_SOURCES}
     ${fluid_sdl2_SOURCES}
@@ -367,6 +374,10 @@ target_link_libraries ( libfluidsynth
 # ************ CLI program ************
 
 set ( fluidsynth_SOURCES fluidsynth.c )
+
+if ( WASAPI_SUPPORT )
+  set ( fluidsynth_SOURCES ${fluidsynth_SOURCES} fluid_wasapi_device_enumerate.c )
+endif ( WASAPI_SUPPORT )
 
 add_executable ( fluidsynth
     ${fluidsynth_SOURCES}

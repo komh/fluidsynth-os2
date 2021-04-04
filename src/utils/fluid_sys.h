@@ -167,6 +167,9 @@ typedef gintptr  intptr_t;
  */
 #define fluid_gerror_message(err)  ((err) ? err->message : "No error details")
 
+#ifdef WIN32
+char* fluid_get_windows_error(void);
+#endif
 
 #define FLUID_INLINE              inline
 
@@ -406,19 +409,19 @@ typedef GStaticPrivate fluid_private_t;
   g_atomic_pointer_compare_and_exchange(_pp, _old, _new)
 
 static FLUID_INLINE void
-fluid_atomic_float_set(volatile float *fptr, float val)
+fluid_atomic_float_set(fluid_atomic_float_t *fptr, float val)
 {
     int32_t ival;
     memcpy(&ival, &val, 4);
-    fluid_atomic_int_set((volatile int *)fptr, ival);
+    fluid_atomic_int_set((fluid_atomic_int_t *)fptr, ival);
 }
 
 static FLUID_INLINE float
-fluid_atomic_float_get(volatile float *fptr)
+fluid_atomic_float_get(fluid_atomic_float_t *fptr)
 {
     int32_t ival;
     float fval;
-    ival = fluid_atomic_int_get((volatile int *)fptr);
+    ival = fluid_atomic_int_get((fluid_atomic_int_t *)fptr);
     memcpy(&fval, &ival, 4);
     return fval;
 }
@@ -501,6 +504,8 @@ typedef GStatBuf fluid_stat_buf_t;
 #endif
 
 FILE* fluid_file_open(const char* filename, const char** errMsg);
+fluid_long_long_t fluid_file_tell(FILE* f);
+
 
 /* Profiling */
 #if WITH_PROFILING

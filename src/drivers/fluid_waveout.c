@@ -27,26 +27,70 @@
 
 #include <mmsystem.h>
 
-#define NOBITMAP
 #include <mmreg.h>
 
-/* Number of buffers in the chain */
+/* Those two includes are required on Windows 9x/ME */
+#include <ks.h>
+#include <ksmedia.h>
+
+/* Number of driver buffers in the chain */
 #define NB_SOUND_BUFFERS    4
 
-/* Milliseconds of a single sound buffer */
-#define MS_BUFFER_LENGTH    20
+/**
+* The driver handle multiple channels.
+* Actually the number maximum of channels is limited to  2 * WAVEOUT_MAX_STEREO_CHANNELS.
+* The only reason of this limitation is because we dont know how to define the mapping
+* of speakers for stereo output number above WAVEOUT_MAX_STEREO_CHANNELS.
+*/
+/* Maximum number of stereo outputs */
+#define WAVEOUT_MAX_STEREO_CHANNELS 4
+
+static char *fluid_waveout_error(MMRESULT hr);
+static int fluid_waveout_write_processed_channels(fluid_synth_t *data, int len,
+                               int channels_count,
+                               void *channels_out[], int channels_off[],
+                               int channels_incr[]);
+
+/* speakers mapping */
+const static DWORD channel_mask_speakers[WAVEOUT_MAX_STEREO_CHANNELS] =
+{
+    /* 1 stereo output */
+    {
+        SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT
+    },
+    /* 2 stereo outputs */
+    {
+        SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+        SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT
+    },
+    /* 3 stereo outputs */
+    {
+        SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
+        SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT
+    },
+    /* 4 stereo outputs */
+    {
+        SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
+        SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT |
+        SPEAKER_SIDE_LEFT | SPEAKER_SIDE_RIGHT
+    }
+};
 
 typedef struct
 {
     fluid_audio_driver_t driver;
 
-    fluid_synth_t *synth;
-    fluid_audio_callback_t write_ptr;
+    void *synth;
+    fluid_audio_func_t func;
+    fluid_audio_channels_callback_t write_ptr;
+    float **drybuf;
 
     HWAVEOUT hWaveOut;
     WAVEHDR  waveHeader[NB_SOUND_BUFFERS];
 
-    int sample_size;
+    int periods; /* numbers of internal driver buffers */
     int num_frames;
 
     HANDLE hThread;
@@ -54,6 +98,7 @@ typedef struct
 
     int    nQuit;
     HANDLE hQuit;
+    int channels_count; /* number of channels in audio stream */
 
 } fluid_waveout_audio_driver_t;
 
@@ -66,6 +111,38 @@ static DWORD WINAPI fluid_waveout_synth_thread(void *data)
 
     MSG msg;
     int code;
+    /* pointers table on output first sample channels */
+    void *channels_out[WAVEOUT_MAX_STEREO_CHANNELS * 2];
+    int channels_off[WAVEOUT_MAX_STEREO_CHANNELS * 2];
+    int channels_incr[WAVEOUT_MAX_STEREO_CHANNELS * 2];
+    int i;
+
+    dev = (fluid_waveout_audio_driver_t *)data;
+
+    /* initialize write callback constant parameters:
+       MME expects interleaved channels in a unique buffer.
+       For example 4 channels (c1, c2, c3, c4) and n samples:
+       { s1:c1, s1:c2, s1:c3, s1:c4,  s2:c1, s2:c2, s2:c3, s2:c4,...
+         sn:c1, sn:c2, sn:c3, sn:c4 }.
+
+       So, channels_off[], channnel_incr[] tables should initialized like this:
+         channels_off[0] = 0    channels_incr[0] = 4
+         channels_off[1] = 1    channels_incr[1] = 4
+         channels_off[2] = 2    channels_incr[2] = 4
+         channels_off[3] = 3    channels_incr[3] = 4
+
+       channels_out[], table will be initialized later, just before calling
+       the write callback function.
+         channels_out[0] = address of dsound buffer
+         channels_out[1] = address of dsound buffer
+         channels_out[2] = address of dsound buffer
+         channels_out[3] = address of dsound buffer
+    */
+    for(i = 0; i < dev->channels_count; i++)
+    {
+        channels_off[i] = i;
+        channels_incr[i] = dev->channels_count;
+    }
 
     /* Forces creation of message queue */
     PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
@@ -76,7 +153,7 @@ static DWORD WINAPI fluid_waveout_synth_thread(void *data)
 
         if(code < 0)
         {
-            FLUID_LOG(FLUID_ERR, "fluid_waveout_synth_thread: GetMessage() failed.");
+            FLUID_LOG(FLUID_ERR, "fluid_waveout_synth_thread: GetMessage() failed: '%s'", fluid_get_windows_error());
             break;
         }
 
@@ -103,7 +180,22 @@ static DWORD WINAPI fluid_waveout_synth_thread(void *data)
             }
             else
             {
-                dev->write_ptr(dev->synth, dev->num_frames, pWave->lpData, 0, 2, pWave->lpData, 1, 2);
+                /* Before calling write function, finish to initialize
+                   channels_out[] table parameter:
+                   MME expects interleaved channels in a unique buffer.
+                   So, channels_out[] table must be initialized with the address
+                   of the same buffer (lpData).
+                */
+                i = dev->channels_count;
+
+                do
+                {
+                    channels_out[--i] = pWave->lpData;
+                }
+                while(i);
+
+                dev->write_ptr(dev->func ? (fluid_synth_t*)dev : dev->synth, dev->num_frames, dev->channels_count,
+                               channels_out, channels_off, channels_incr);
 
                 waveOutWrite((HWAVEOUT)msg.wParam, pWave, sizeof(WAVEHDR));
             }
@@ -149,19 +241,48 @@ void fluid_waveout_audio_driver_settings(fluid_settings_t *settings)
 
 /*
  * new_fluid_waveout_audio_driver
+ * The driver handle the case of multiple stereo buffers provided by fluidsynth
+ * mixer.
+ * Each stereo buffers (left, right) are written to respective channels pair
+ * of the audio device card.
+ * For example, if the number of internal mixer buffer is 2, the audio device
+ * must have at least 4 channels:
+ * - buffer 0 (left, right) will be written to channel pair (0, 1).
+ * - buffer 1 (left, right) will be written to channel pair (2, 3).
+ *
+ * @param setting. The settings the driver looks for:
+ *  "synth.sample-rate", the sample rate.
+ *  "synth.audio-channels", the number of internal mixer stereo buffer.
+ *  "audio.periods",the number of buffers.
+ *  "audio.period-size",the size of one buffer.
+ *  "audio.sample-format",the sample format, 16bits or float.
+ *
+ * @param synth, fluidsynth synth instance to associate to the driver.
+ *
+ * Note: The number of internal mixer stereo buffer is indicated by "synth.audio-channels".
+ * If the audio device cannot handle the format or do not have enough channels,
+ * the driver fails and return NULL.
  */
 fluid_audio_driver_t *
 new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
 {
+    return new_fluid_waveout_audio_driver2(settings, NULL, synth);
+}
+
+fluid_audio_driver_t *
+new_fluid_waveout_audio_driver2(fluid_settings_t *settings, fluid_audio_func_t func, void *data)
+{
     fluid_waveout_audio_driver_t *dev = NULL;
-    fluid_audio_callback_t write_ptr;
+    fluid_audio_channels_callback_t write_ptr;
     double sample_rate;
-    int periods, period_size, frequency, sample_size;
+    int frequency, sample_size;
+    int periods, period_size;
+    int audio_channels;
     LPSTR ptrBuffer;
     int lenBuffer;
     int device;
     int i;
-    WAVEFORMATEX wfx;
+    WAVEFORMATEXTENSIBLE wfx;
     char dev_name[MAXPNAMELEN];
     MMRESULT errCode;
 
@@ -169,28 +290,38 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
     fluid_settings_getnum(settings, "synth.sample-rate", &sample_rate);
     fluid_settings_getint(settings, "audio.periods", &periods);
     fluid_settings_getint(settings, "audio.period-size", &period_size);
+    fluid_settings_getint(settings, "synth.audio-channels", &audio_channels);
 
-    /* Clear the format buffer */
-    ZeroMemory(&wfx, sizeof(WAVEFORMATEX));
+    if(periods > NB_SOUND_BUFFERS)
+    {
+        FLUID_LOG(FLUID_INFO, "audio.periods %d exceeds internal limit %d",
+                              periods, NB_SOUND_BUFFERS);
+        return NULL;
+    }
+
+    /* Clear format structure */
+    ZeroMemory(&wfx, sizeof(WAVEFORMATEXTENSIBLE));
 
     /* check the format */
-    if(fluid_settings_str_equal(settings, "audio.sample-format", "float"))
+    if(fluid_settings_str_equal(settings, "audio.sample-format", "float") || func)
     {
+        GUID guid_float = {DEFINE_WAVEFORMATEX_GUID(WAVE_FORMAT_IEEE_FLOAT)};
         FLUID_LOG(FLUID_DBG, "Selected 32 bit sample format");
 
         sample_size = sizeof(float);
-        write_ptr   = fluid_synth_write_float;
-
-        wfx.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+        write_ptr = func ? fluid_waveout_write_processed_channels : fluid_synth_write_float_channels;
+        wfx.SubFormat = guid_float;
+        wfx.Format.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
     }
     else if(fluid_settings_str_equal(settings, "audio.sample-format", "16bits"))
     {
+        GUID guid_pcm = {DEFINE_WAVEFORMATEX_GUID(WAVE_FORMAT_PCM)};
         FLUID_LOG(FLUID_DBG, "Selected 16 bit sample format");
 
         sample_size = sizeof(short);
-        write_ptr   = fluid_synth_write_s16;
-
-        wfx.wFormatTag = WAVE_FORMAT_PCM;
+        write_ptr = fluid_synth_write_s16_channels;
+        wfx.SubFormat = guid_pcm;
+        wfx.Format.wFormatTag = WAVE_FORMAT_PCM;
     }
     else
     {
@@ -201,23 +332,42 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
     /* Set frequency to integer */
     frequency = (int)sample_rate;
 
-    /* Compile the format buffer */
-    wfx.nChannels       = 2;
-    wfx.wBitsPerSample  = sample_size * 8;
-    wfx.nSamplesPerSec  = frequency;
-    wfx.nBlockAlign     = sample_size * wfx.nChannels;
-    wfx.nAvgBytesPerSec = frequency * wfx.nBlockAlign;
+    /* Initialize the format structure */
+    wfx.Format.nChannels  = audio_channels * 2;
 
-    /* Calculate the length of a single buffer */
-    lenBuffer = (MS_BUFFER_LENGTH * wfx.nAvgBytesPerSec + 999) / 1000;
+    if(audio_channels > WAVEOUT_MAX_STEREO_CHANNELS)
+    {
+        FLUID_LOG(FLUID_ERR, "Channels number %d exceed internal limit %d",
+                  wfx.Format.nChannels, WAVEOUT_MAX_STEREO_CHANNELS * 2);
+        return NULL;
+    }
 
-    /* Round to 8-bytes size */
-    lenBuffer = (lenBuffer + 7) & ~7;
+    wfx.Format.wBitsPerSample  = sample_size * 8;
+    wfx.Format.nBlockAlign     = sample_size * wfx.Format.nChannels;
+    wfx.Format.nSamplesPerSec  = frequency;
+    wfx.Format.nAvgBytesPerSec = frequency * wfx.Format.nBlockAlign;
+    /* WAVEFORMATEXTENSIBLE extension is used only when channels number
+       is above 2.
+       When channels number is below 2, only WAVEFORMATEX structure
+       will be used by the Windows driver. This ensures compatibility with
+       Windows 9X/NT in the case these versions does not accept the
+       WAVEFORMATEXTENSIBLE structure.
+    */
+    if(wfx.Format.nChannels > 2)
+    {
+        wfx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+        wfx.Format.cbSize = 22;
+        wfx.Samples.wValidBitsPerSample = wfx.Format.wBitsPerSample;
+        wfx.dwChannelMask = channel_mask_speakers[audio_channels - 1];
+    }
 
+    /* allocate the internal waveout buffers:
+      The length of a single buffer in bytes is dependant of period_size.
+    */
+    lenBuffer = wfx.Format.nBlockAlign * period_size;
     /* create and clear the driver data */
     dev = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-                    sizeof(fluid_waveout_audio_driver_t) + lenBuffer * NB_SOUND_BUFFERS);
-
+                    sizeof(fluid_waveout_audio_driver_t) + lenBuffer * periods);
     if(dev == NULL)
     {
         FLUID_LOG(FLUID_ERR, "Out of memory");
@@ -225,17 +375,48 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
     }
 
     /* Save copy of synth */
-    dev->synth = synth;
+    dev->synth = data;
+    dev->func = func;
 
     /* Save copy of other variables */
     dev->write_ptr = write_ptr;
-    dev->sample_size = sample_size;
-
-    /* Calculate the number of frames in a block */
-    dev->num_frames = lenBuffer / wfx.nBlockAlign;
+    /* number of frames in a buffer */
+    dev->num_frames = period_size;
+    /* number of buffers */
+    dev->periods = periods;
+    dev->channels_count = wfx.Format.nChannels;
 
     /* Set default device to use */
     device = WAVE_MAPPER;
+
+    if(func)
+    {
+        /* allocate extra buffer used by fluid_waveout_write_processed_channels().
+           These buffers are buffer adaptation between the rendering
+           API fluid_synth_process() and the waveout internal buffers
+           Note: the size (in bytes) of these extra buffer (drybuf[]) must be the
+           same that the size of internal waveout buffers.
+        */
+        dev->drybuf = FLUID_ARRAY(float*, audio_channels * 2);
+        if(dev->drybuf == NULL)
+        {
+            FLUID_LOG(FLUID_ERR, "Out of memory");
+            delete_fluid_waveout_audio_driver(&dev->driver);
+            return NULL;
+        }
+        FLUID_MEMSET(dev->drybuf, 0, sizeof(float*) * audio_channels * 2);
+        for(i = 0; i < audio_channels * 2; ++i)
+        {
+            /* The length of a single buffer drybuf[i] is dependant of period_size */
+            dev->drybuf[i] = FLUID_ARRAY(float, period_size);
+            if(dev->drybuf[i] == NULL)
+            {
+                FLUID_LOG(FLUID_ERR, "Out of memory");
+                delete_fluid_waveout_audio_driver(&dev->driver);
+                return NULL;
+            }
+        }
+    }
 
     /* get the selected device name. if none is specified, use default device. */
     if(fluid_settings_copystr(settings, "audio.waveout.device", dev_name, MAXPNAMELEN) == FLUID_OK
@@ -280,7 +461,7 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
 
         if(dev->hQuit == NULL)
         {
-            FLUID_LOG(FLUID_ERR, "Failed to create quit event");
+            FLUID_LOG(FLUID_ERR, "Failed to create quit event: '%s'", fluid_get_windows_error());
             break;
         }
 
@@ -296,20 +477,20 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
 
         if(dev->hThread == NULL)
         {
-            FLUID_LOG(FLUID_ERR, "Failed to create waveOut thread");
+            FLUID_LOG(FLUID_ERR, "Failed to create waveOut thread: '%s'", fluid_get_windows_error());
             break;
         }
 
         errCode = waveOutOpen(&dev->hWaveOut,
                               device,
-                              &wfx,
+                              (WAVEFORMATEX *)&wfx,
                               (DWORD_PTR)dev->dwThread,
                               0,
                               CALLBACK_THREAD);
 
         if(errCode != MMSYSERR_NOERROR)
         {
-            FLUID_LOG(FLUID_ERR, "Failed to open waveOut device");
+            FLUID_LOG(FLUID_ERR, "Failed to open waveOut device: '%s'", fluid_waveout_error(errCode));
             break;
         }
 
@@ -317,7 +498,7 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
         ptrBuffer = (LPSTR)(dev + 1);
 
         /* Setup the sample buffers */
-        for(i = 0; i < NB_SOUND_BUFFERS; i++)
+        for(i = 0; i < periods; i++)
         {
             /* Clear the sample buffer */
             memset(ptrBuffer, 0, lenBuffer);
@@ -336,7 +517,7 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
         }
 
         /* Play the sample buffers */
-        for(i = 0; i < NB_SOUND_BUFFERS; i++)
+        for(i = 0; i < periods; i++)
         {
             waveOutWrite(dev->hWaveOut, &dev->waveHeader[i], sizeof(WAVEHDR));
         }
@@ -353,13 +534,15 @@ new_fluid_waveout_audio_driver(fluid_settings_t *settings, fluid_synth_t *synth)
 
 void delete_fluid_waveout_audio_driver(fluid_audio_driver_t *d)
 {
+    int i;
+
     fluid_waveout_audio_driver_t *dev = (fluid_waveout_audio_driver_t *) d;
     fluid_return_if_fail(dev != NULL);
 
     /* release all the allocated resources */
     if(dev->hWaveOut != NULL)
     {
-        dev->nQuit = NB_SOUND_BUFFERS;
+        dev->nQuit = dev->periods;
         WaitForSingleObject(dev->hQuit, INFINITE);
 
         waveOutClose(dev->hWaveOut);
@@ -378,7 +561,81 @@ void delete_fluid_waveout_audio_driver(fluid_audio_driver_t *d)
         CloseHandle(dev->hQuit);
     }
 
+    if(dev->drybuf != NULL)
+    {
+        for(i = 0; i < dev->channels_count; ++i)
+        {
+            FLUID_FREE(dev->drybuf[i]);
+        }
+    }
+
+    FLUID_FREE(dev->drybuf);
+
     HeapFree(GetProcessHeap(), 0, dev);
+}
+
+static int fluid_waveout_write_processed_channels(fluid_synth_t *data, int len,
+                               int channels_count,
+                               void *channels_out[], int channels_off[],
+                               int channels_incr[])
+{
+    int i, ch;
+    int ret;
+    fluid_waveout_audio_driver_t *drv = (fluid_waveout_audio_driver_t*) data;
+    float *optr[WAVEOUT_MAX_STEREO_CHANNELS * 2];
+    for(ch = 0; ch < drv->channels_count; ++ch)
+    {
+        FLUID_MEMSET(drv->drybuf[ch], 0, len * sizeof(float));
+        optr[ch] = (float*)channels_out[ch] + channels_off[ch];
+    }
+    ret = drv->func(drv->synth, len, 0, NULL, drv->channels_count, drv->drybuf);
+    for(ch = 0; ch < drv->channels_count; ++ch)
+    {
+        for(i = 0; i < len; ++i)
+        {
+            *optr[ch] = drv->drybuf[ch][i];
+            optr[ch] += channels_incr[ch];
+        }
+    }
+    return ret;
+}
+
+static char *fluid_waveout_error(MMRESULT hr)
+{
+    char *s = "Don't know why";
+
+    switch(hr)
+    {
+    case MMSYSERR_NOERROR:
+        s = "The operation completed successfully :)";
+        break;
+
+    case MMSYSERR_ALLOCATED:
+        s = "Specified resource is already allocated.";
+        break;
+
+    case MMSYSERR_BADDEVICEID:
+        s = "Specified device identifier is out of range";
+        break;
+
+    case MMSYSERR_NODRIVER:
+        s = "No device driver is present";
+        break;
+
+    case MMSYSERR_NOMEM:
+        s = "Unable to allocate or lock memory";
+        break;
+
+    case WAVERR_BADFORMAT:
+        s = "Attempted to open with an unsupported waveform-audio format";
+        break;
+
+    case WAVERR_SYNC:
+        s = "The device is synchronous but waveOutOpen was called without using the WAVE_ALLOWSYNC flag";
+        break;
+    }
+
+    return s;
 }
 
 #endif /* WAVEOUT_SUPPORT */

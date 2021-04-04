@@ -20,7 +20,7 @@
 # CMake based build system. Pedro Lopez-Cabanillas <plcl@users.sf.net>
 
 cmake_minimum_required ( VERSION 3.1.0 ) # because of CMAKE_C_STANDARD
-project ( FluidSynth C )
+project ( FluidSynth C CXX )
 set ( CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_admin )
 
 # FluidSynth package name
@@ -28,8 +28,8 @@ set ( PACKAGE "fluidsynth" )
 
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 2 )
-set ( FLUIDSYNTH_VERSION_MINOR 1 )
-set ( FLUIDSYNTH_VERSION_MICRO 8 )
+set ( FLUIDSYNTH_VERSION_MINOR 2 )
+set ( FLUIDSYNTH_VERSION_MICRO 0 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -42,9 +42,9 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # if any interfaces have been added: AGE++
 # if any interfaces have been removed/changed (compatibility broken): AGE=0
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
-set ( LIB_VERSION_CURRENT 2 )
-set ( LIB_VERSION_AGE 3 )
-set ( LIB_VERSION_REVISION 8 )
+set ( LIB_VERSION_CURRENT 3 )
+set ( LIB_VERSION_AGE 0 )
+set ( LIB_VERSION_REVISION 0 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -72,6 +72,7 @@ option ( enable-oboe "compile Oboe support (requires OpenSLES and/or AAudio)" of
 option ( enable-network "enable network support (requires BSD sockets)" on )
 option ( enable-oss "compile OSS support (if it is available)" on )
 option ( enable-dsound "compile DirectSound support (if it is available)" on )
+option ( enable-wasapi "compile Windows WASAPI support (if it is available)" on )
 option ( enable-waveout "compile Windows WaveOut support (if it is available)" on )
 option ( enable-winmidi "compile Windows MIDI support (if it is available)" on )
 option ( enable-sdl2 "compile SDL2 audio support (if it is available)" on )
@@ -118,6 +119,12 @@ mark_as_advanced ( LIB_SUFFIX )
 # the default C standard to use for all targets
 set(CMAKE_C_STANDARD 90)
 
+# the default C++ standard to use for all targets
+set(CMAKE_CXX_STANDARD 98)
+
+# whether to use gnu extensions
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Compile with position independent code if the user requested a shared lib, i.e. no PIC if static requested.
 # This is cmakes default behavior, but here it's explicitly required due to the use of libfluidsynth-OBJ as object library,
 # which would otherwise always be compiled without PIC.
@@ -144,6 +151,7 @@ include ( CheckCCompilerFlag )
 include ( CheckSTDC )
 include ( CheckIncludeFile )
 include ( CheckFunctionExists )
+include ( CheckTypeSize )
 check_include_file ( string.h HAVE_STRING_H )
 check_include_file ( stdlib.h HAVE_STDLIB_H )
 check_include_file ( stdio.h HAVE_STDIO_H )
@@ -165,6 +173,11 @@ check_include_file ( pthread.h HAVE_PTHREAD_H )
 check_include_file ( signal.h HAVE_SIGNAL_H )
 check_include_file ( getopt.h HAVE_GETOPT_H )
 check_include_file ( stdint.h HAVE_STDINT_H )
+check_type_size ( "long long" LONG_LONG )
+if ( NOT HAVE_LONG_LONG AND NOT MSVC)
+    message ( FATAL_ERROR "Your compiler does not support intrinsic type 'long long'. Unable to compile fluidsynth." )
+endif ()
+
 include ( TestInline )
 include ( TestVLA )
 include ( TestBigEndian )
@@ -202,9 +215,11 @@ if ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_C
   else () # not intel
     # gcc and clang support bad function cast and alignment warnings; add them as well.
     set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wbad-function-cast -Wcast-align" )
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wcast-align" )
 
     if ( enable-ubsan )
       set ( CMAKE_C_FLAGS "-fsanitize=address,undefined ${CMAKE_C_FLAGS}" )
+      set ( CMAKE_CXX_FLAGS "-fsanitize=address,undefined ${CMAKE_CXX_FLAGS}" )
       set ( CMAKE_EXE_LINKER_FLAGS "-fsanitize=address,undefined ${CMAKE_EXE_LINKER_FLAGS}" )
       set ( CMAKE_SHARED_LINKER_FLAGS "-fsanitize=address,undefined ${CMAKE_SHARED_LINKER_FLAGS}" )
       set ( ENABLE_UBSAN 1 )
@@ -215,6 +230,7 @@ endif ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_
 # Windows
 unset ( WINDOWS_LIBS CACHE )
 unset ( DSOUND_SUPPORT CACHE )
+unset ( WASAPI_SUPPORT CACHE )
 unset ( WAVEOUT_SUPPORT CACHE )
 unset ( WINMIDI_SUPPORT CACHE )
 unset ( MINGW32 CACHE )
@@ -226,6 +242,8 @@ if ( WIN32 )
   check_include_file ( io.h HAVE_IO_H )
   check_include_file ( dsound.h HAVE_DSOUND_H )
   check_include_files ( "windows.h;mmsystem.h" HAVE_MMSYSTEM_H )
+  check_include_files ( "mmdeviceapi.h;audioclient.h" HAVE_WASAPI_HEADERS )
+  check_include_file ( objbase.h HAVE_OBJBASE_H )
 
   if ( enable-network )
     set ( WINDOWS_LIBS "${WINDOWS_LIBS};ws2_32" )
@@ -244,6 +262,11 @@ if ( WIN32 )
   if ( enable-waveout AND HAVE_MMSYSTEM_H )
     set ( WINDOWS_LIBS "${WINDOWS_LIBS};winmm" )
     set ( WAVEOUT_SUPPORT 1 )
+  endif ()
+
+  if ( enable-wasapi AND HAVE_WASAPI_HEADERS AND HAVE_OBJBASE_H)
+    set ( WINDOWS_LIBS "${WINDOWS_LIBS};ole32" )
+    set ( WASAPI_SUPPORT 1 )
   endif ()
 
   set ( LIBFLUID_CPPFLAGS "-DFLUIDSYNTH_DLL_EXPORTS" )
@@ -408,7 +431,7 @@ endif ( NOT CMAKE_BUILD_TYPE )
 unset ( ENABLE_DEBUG CACHE )
 if ( CMAKE_BUILD_TYPE MATCHES "Debug" )
     set ( ENABLE_DEBUG 1 )
-    add_definitions(-DDEBUG)
+    add_definitions(-DDEBUG) # -D_GLIBCXX_DEBUG) # for additional C++ STL container debugging
 endif ( CMAKE_BUILD_TYPE MATCHES "Debug" )
 
 # Additional targets to perform clang-format/clang-tidy
@@ -576,13 +599,13 @@ else(NOT enable-pkgconfig)
     unset ( OBOE_SUPPORT CACHE )
     unset ( OBOE_LIBS CACHE )
     if ( enable-oboe )
-    # enable C++ as it's needed for oboe
-    enable_language ( CXX )
-    pkg_check_modules ( OBOE oboe-1.0 )
-    if ( OBOE_FOUND )
+      pkg_check_modules ( OBOE oboe-1.0 )
+      if ( OBOE_FOUND )
+        set(CMAKE_CXX_STANDARD 14)
+        set(CMAKE_CXX_STANDARD_REQUIRED ON)
         set ( OBOE_SUPPORT 1 )
         set ( OBOE_LIBS ${OBOE_LIBRARIES} )
-    endif ( OBOE_FOUND )
+      endif ( OBOE_FOUND )
     endif ( enable-oboe )
 
     unset ( WITH_READLINE CACHE )
@@ -660,6 +683,7 @@ endif()
 
 # manipulate some variables to setup a proper test env
 set(TEST_SOUNDFONT "${CMAKE_SOURCE_DIR}/sf2/VintageDreamsWaves-v2.sf2")
+set(TEST_SOUNDFONT_UTF8 "${CMAKE_SOURCE_DIR}/sf2/\\xE2\\x96\\xA0VintageDreamsWaves-v2\\xE2\\x96\\xA0.sf2")
 set(TEST_SOUNDFONT_SF3 "${CMAKE_SOURCE_DIR}/sf2/VintageDreamsWaves-v2.sf3")
 
 # Check for C99 float math

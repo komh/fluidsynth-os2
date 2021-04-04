@@ -79,6 +79,12 @@ else ( SDL2_SUPPORT )
     set ( AUDIO_MIDI_REPORT "${AUDIO_MIDI_REPORT}  SDL2:                  no\n" )
 endif ( SDL2_SUPPORT )
 
+if ( WASAPI_SUPPORT )
+    set ( AUDIO_MIDI_REPORT "${AUDIO_MIDI_REPORT}  WASAPI:                yes\n" )
+else ( WASAPI_SUPPORT )
+    set ( AUDIO_MIDI_REPORT "${AUDIO_MIDI_REPORT}  WASAPI:                no\n" )
+endif ( WASAPI_SUPPORT )
+
 if ( WAVEOUT_SUPPORT )
     set ( AUDIO_MIDI_REPORT "${AUDIO_MIDI_REPORT}  WaveOut:               yes\n" )
 else ( WAVEOUT_SUPPORT )
@@ -170,6 +176,12 @@ if ( SYSTEMD_SUPPORT )
 else ( SYSTEMD_SUPPORT )
   set ( MISC_REPORT "${MISC_REPORT}  systemd:               no\n" )
 endif ( SYSTEMD_SUPPORT )
+
+if ( HAVE_GETOPT_H )
+  set ( MISC_REPORT "${MISC_REPORT}  getopt:                yes\n" )
+else ( HAVE_GETOPT_H )
+  set ( MISC_REPORT "${MISC_REPORT}  getopt:                no\n" )
+endif ( HAVE_GETOPT_H )
 
 
 set ( DEVEL_REPORT "\nDeveloper nerds info:\n" )
