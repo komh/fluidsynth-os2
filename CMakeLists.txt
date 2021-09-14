@@ -30,7 +30,7 @@ if(POLICY CMP0091)
 endif()
 
 project ( FluidSynth C CXX )
-set ( CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_admin )
+list( APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_admin )
 
 # FluidSynth package name
 set ( PACKAGE "fluidsynth" )
@@ -38,7 +38,7 @@ set ( PACKAGE "fluidsynth" )
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 2 )
 set ( FLUIDSYNTH_VERSION_MINOR 2 )
-set ( FLUIDSYNTH_VERSION_MICRO 2 )
+set ( FLUIDSYNTH_VERSION_MICRO 3 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -53,7 +53,7 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 3 )
 set ( LIB_VERSION_AGE 0 )
-set ( LIB_VERSION_REVISION 2 )
+set ( LIB_VERSION_REVISION 3 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -200,12 +200,12 @@ unset ( FLUID_LIBS CACHE )
 unset ( ENABLE_UBSAN CACHE )
 
 if ( CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Intel" )
-  if ( NOT APPLE AND NOT OS2 )
+  if ( NOT APPLE AND NOT OS2 AND NOT EMSCRIPTEN )
     set ( CMAKE_EXE_LINKER_FLAGS
           "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed" )
     set ( CMAKE_SHARED_LINKER_FLAGS
           "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined" )
-  endif ( NOT APPLE AND NOT OS2 )
+  endif ( NOT APPLE AND NOT OS2 AND NOT EMSCRIPTEN )
 
   # define some warning flags
   set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -W -Wpointer-arith -Wcast-qual -Wstrict-prototypes -Wno-unused-parameter -Wdeclaration-after-statement -Werror=implicit-function-declaration" )
@@ -774,6 +774,18 @@ if ( enable-ipv6 )
   endif ( HAVE_INETNTOP )
 endif ( enable-ipv6 )
 
+unset ( HAVE_SOCKLEN_T CACHE )
+set ( CMAKE_EXTRA_INCLUDE_FILES_SAVE ${CMAKE_EXTRA_INCLUDE_FILES} )
+if ( WIN32 )
+  set ( CMAKE_EXTRA_INCLUDE_FILES "winsock2.h;ws2tcpip.h" )
+else ( WIN32 )
+  set ( CMAKE_EXTRA_INCLUDE_FILES sys/socket.h )
+endif ( WIN32 )
+check_type_size ( socklen_t SOCKLEN_T )
+set ( CMAKE_EXTRA_INCLUDE_FILES ${CMAKE_EXTRA_INCLUDE_FILES_SAVE} )
+if ( HAVE_SOCKLEN_T )
+  set ( HAVE_SOCKLEN_T 1 )
+endif ( HAVE_SOCKLEN_T )
 
 # General configuration file
 configure_file ( ${CMAKE_SOURCE_DIR}/src/config.cmake
@@ -816,7 +828,7 @@ else ()
   set ( includedir "\${prefix}/${INCLUDE_INSTALL_DIR}" )
 endif ()
 
-if ( CMAKE_VERSION VERSION_GREATER_EQUAL "3.12.0" )
+if ( CMAKE_VERSION VERSION_EQUAL "3.12.0" OR CMAKE_VERSION VERSION_GREATER "3.12.0" )
     # retrieve all the private libs we depend on
     get_target_property ( LIBS_PRIVATE libfluidsynth INTERFACE_LINK_LIBRARIES)
     # make a copy
@@ -837,7 +849,7 @@ else ()
     set ( LIBS_PRIVATE "" )
     set ( LIBS_PRIVATE_WITH_PATH "" )
     message ( DEPRECATION "Your version of CMake is old. A complete pkg-config file can not created. Get cmake 3.13.3 or newer." )
-endif ( CMAKE_VERSION VERSION_GREATER_EQUAL "3.12.0" )
+endif ( CMAKE_VERSION VERSION_EQUAL "3.12.0" OR CMAKE_VERSION VERSION_GREATER "3.12.0" )
 
 configure_file ( fluidsynth.pc.in
 	${CMAKE_BINARY_DIR}/fluidsynth.pc IMMEDIATE @ONLY )
@@ -846,10 +858,6 @@ install ( FILES ${CMAKE_BINARY_DIR}/fluidsynth.pc
 
 # Extra targets for Unix build environments
 if ( UNIX )
-    # RPM spec
-    configure_file ( fluidsynth.spec.in
-        ${CMAKE_BINARY_DIR}/fluidsynth.spec IMMEDIATE @ONLY )
-
     if ( DEFINED FLUID_DAEMON_ENV_FILE)
         configure_file ( fluidsynth.service.in
         ${CMAKE_BINARY_DIR}/fluidsynth.service @ONLY )
