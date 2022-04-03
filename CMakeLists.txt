@@ -1,6 +1,6 @@
 # FluidSynth - A Software Synthesizer
 #
-# Copyright (C) 2003-2021 Peter Hanappe and others.
+# Copyright (C) 2003-2022 Peter Hanappe and others.
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public License
@@ -38,7 +38,7 @@ set ( PACKAGE "fluidsynth" )
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 2 )
 set ( FLUIDSYNTH_VERSION_MINOR 2 )
-set ( FLUIDSYNTH_VERSION_MICRO 4 )
+set ( FLUIDSYNTH_VERSION_MICRO 6 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -53,7 +53,7 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 3 )
 set ( LIB_VERSION_AGE 0 )
-set ( LIB_VERSION_REVISION 4 )
+set ( LIB_VERSION_REVISION 6 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -879,13 +879,13 @@ if ( CMAKE_VERSION VERSION_EQUAL "3.12.0" OR CMAKE_VERSION VERSION_GREATER "3.12
     list ( TRANSFORM LIBS_PRIVATE PREPEND "-l")
     list ( JOIN LIBS_PRIVATE " " LIBS_PRIVATE_JOINED )
     list ( JOIN LIBS_PRIVATE_WITH_PATH " " LIBS_PRIVATE_WITH_PATH_JOINED )
+
+    list ( JOIN PC_REQUIRES_PRIV " " PC_REQUIRES_PRIV_JOINED )
 else ()
     set ( LIBS_PRIVATE "" )
     set ( LIBS_PRIVATE_WITH_PATH "" )
     message ( DEPRECATION "Your version of CMake is old. A complete pkg-config file can not created. Get cmake 3.13.3 or newer." )
 endif ( CMAKE_VERSION VERSION_EQUAL "3.12.0" OR CMAKE_VERSION VERSION_GREATER "3.12.0" )
-
-list ( JOIN PC_REQUIRES_PRIV " " PC_REQUIRES_PRIV_JOINED )
 
 configure_file ( fluidsynth.pc.in
 	${CMAKE_BINARY_DIR}/fluidsynth.pc IMMEDIATE @ONLY )
