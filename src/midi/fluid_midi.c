@@ -126,8 +126,13 @@ new_fluid_midi_file(const char *buffer, size_t length)
 {
     fluid_midi_file *mf;
 
-    mf = FLUID_NEW(fluid_midi_file);
+    if(length > INT_MAX)
+    {
+        FLUID_LOG(FLUID_ERR, "Refusing to open a MIDI file which is bigger than 2GiB");
+        return NULL;
+    }
 
+    mf = FLUID_NEW(fluid_midi_file);
     if(mf == NULL)
     {
         FLUID_LOG(FLUID_ERR, "Out of memory");
@@ -140,7 +145,7 @@ new_fluid_midi_file(const char *buffer, size_t length)
     mf->running_status = -1;
 
     mf->buffer = buffer;
-    mf->buf_len = length;
+    mf->buf_len = (int)length;
     mf->buf_pos = 0;
     mf->eof = FALSE;
 
@@ -2331,6 +2336,12 @@ static void fluid_player_update_tempo(fluid_player_t *player)
     int tempo; /* tempo in micro seconds by quarter note */
     float deltatime;
 
+    /* do nothing if the division is still unknown to avoid a div by zero */
+    if(player->division == 0)
+    {
+        return;
+    }
+
     if(fluid_atomic_int_get(&player->sync_mode))
     {
         /* take internal tempo from MIDI file */
@@ -2394,6 +2405,10 @@ static void fluid_player_update_tempo(fluid_player_t *player)
  * MIDI file so that next call to fluid_player_set_tempo() with
  * #FLUID_PLAYER_TEMPO_INTERNAL will set the player to follow this internal
  * tempo.
+ *
+ * @warning If the function is called when no MIDI file is loaded or currently playing, it
+ * would have caused a division by zero in fluidsynth 2.2.7 and earlier. Starting with 2.2.8, the
+ * new tempo change will be stashed and applied later.
  *
  * @return #FLUID_OK if success or #FLUID_FAILED otherwise (incorrect parameters).
  * @since 2.2.0
@@ -2637,14 +2652,9 @@ fluid_midi_parser_parse(fluid_midi_parser_t *parser, unsigned char c)
      * of another message. */
     if(c >= 0xF8)
     {
-        if(c == MIDI_SYSTEM_RESET)
-        {
-            parser->event.type = c;
-            parser->status = 0; /* clear the status */
-            return &parser->event;
-        }
-
-        return NULL;
+        parser->event.type = c;
+        parser->status = 0; /* clear the status */
+        return &parser->event;
     }
 
     /* Status byte? - If previous message not yet complete, it is discarded (re-sync). */
