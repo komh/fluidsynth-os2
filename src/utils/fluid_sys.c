@@ -590,11 +590,11 @@ void fluid_clear_fpe_i386(void)
 
 /*
   -----------------------------------------------------------------------------
-  Shell task side |    Profiling interface              |  Audio task side
+  Shell task side |    Profiling interface               |  Audio task side
   -----------------------------------------------------------------------------
-  profiling       |    Internal    |      |             |      Audio
-  command   <---> |<-- profling -->| Data |<--macros -->| <--> rendering
-  shell           |    API         |      |             |      API
+  profiling       |    Internal     |      |             |      Audio
+  command   <---> |<-- profiling -->| Data |<--macros -->| <--> rendering
+  shell           |    API          |      |             |      API
 
 */
 /* default parameters for shell command "prof_start" in fluid_sys.c */
@@ -1730,14 +1730,14 @@ FILE* fluid_file_open(const char* path, const char** errMsg)
     
     FILE* handle = NULL;
     
-    if(!g_file_test(path, G_FILE_TEST_EXISTS))
+    if(!fluid_file_test(path, FLUID_FILE_TEST_EXISTS))
     {
         if(errMsg != NULL)
         {
             *errMsg = ErrExist;
         }
     }
-    else if(!g_file_test(path, G_FILE_TEST_IS_REGULAR))
+    else if(!fluid_file_test(path, FLUID_FILE_TEST_IS_REGULAR))
     {
         if(errMsg != NULL)
         {

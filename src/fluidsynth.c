@@ -42,6 +42,10 @@
 #include <SDL.h>
 #endif
 
+#if PIPEWIRE_SUPPORT
+#include <pipewire/pipewire.h>
+#endif
+
 void print_usage(void);
 void print_help(fluid_settings_t *settings);
 void print_welcome(void);
@@ -410,7 +414,11 @@ int main(int argc, char **argv)
     {
         atexit(SDL_Quit);
     }
+#endif
 
+#if PIPEWIRE_SUPPORT
+    pw_init(&argc, &argv);
+    atexit(pw_deinit);
 #endif
 
     /* create the settings */
@@ -897,7 +905,7 @@ int main(int argc, char **argv)
         }
 
         /* if the automatically selected command file does not exist, do not even attempt to open it */
-        if(config_file != NULL && !g_file_test(config_file, G_FILE_TEST_EXISTS))
+        if(config_file != NULL && !fluid_file_test(config_file, FLUID_FILE_TEST_EXISTS))
         {
             config_file = NULL;
         }
