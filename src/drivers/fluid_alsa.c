@@ -34,7 +34,7 @@
 
 #define ALSA_PCM_NEW_HW_PARAMS_API
 #include <alsa/asoundlib.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <math.h>
 
 #include "fluid_lash.h"
@@ -645,7 +645,7 @@ void fluid_alsa_rawmidi_driver_settings(fluid_settings_t *settings)
     while((err == 0) && (card >= 0))
     {
         int device = -1;
-        snd_ctl_t *ctl;
+        snd_ctl_t *ctl = NULL;
         char card_name[32];
 
         FLUID_SNPRINTF(card_name, sizeof(card_name), "hw:%d", card);
@@ -707,7 +707,12 @@ void fluid_alsa_rawmidi_driver_settings(fluid_settings_t *settings)
             }
         }
 
-        snd_ctl_close(ctl);
+        if(ctl)
+        {
+            snd_ctl_close(ctl);
+            ctl = NULL;
+        }
+
         err = snd_card_next(&card);
     }
 }

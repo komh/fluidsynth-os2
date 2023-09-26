@@ -229,7 +229,7 @@ void fluid_synth_settings(fluid_settings_t *settings)
     fluid_settings_register_int(settings, "synth.effects-channels", 2, 2, 2, 0);
     fluid_settings_register_int(settings, "synth.effects-groups", 1, 1, 128, 0);
     fluid_settings_register_num(settings, "synth.sample-rate", 44100.0f, 8000.0f, 96000.0f, 0);
-    fluid_settings_register_int(settings, "synth.device-id", 0, 0, 126, 0);
+    fluid_settings_register_int(settings, "synth.device-id", 0, 0, 127, 0);
 #ifdef ENABLE_MIXER_THREADS
     fluid_settings_register_int(settings, "synth.cpu-cores", 1, 1, 256, 0);
 #else
@@ -290,8 +290,12 @@ static void
 fluid_synth_init(void)
 {
 #ifdef TRAP_ON_FPE
+  #if !defined(__GLIBC__) && defined(__linux__)
+    #warning "Trap on FPE is only supported when using glibc!"
+  #else
     /* Turn on floating point exception traps */
     feenableexcept(FE_DIVBYZERO | FE_OVERFLOW | FE_INVALID);
+  #endif
 #endif
 
     init_dither();
@@ -1969,7 +1973,7 @@ fluid_synth_handle_device_id(void *data, const char *name, int value)
  * @param len Length of data in buffer
  * @param response Buffer to store response to or NULL to ignore
  * @param response_len IN/OUT parameter, in: size of response buffer, out:
- *   amount of data written to response buffer (if FLUID_FAILED is returned and
+ *   amount of data written to response buffer (if #FLUID_FAILED is returned and
  *   this value is non-zero, it indicates the response buffer is too small)
  * @param handled Optional location to store boolean value if message was
  *   recognized and handled or not (set to TRUE if it was handled)
@@ -1977,12 +1981,20 @@ fluid_synth_handle_device_id(void *data, const char *name, int value)
  *   command (useful for checking if a SYSEX message would be handled)
  * @return #FLUID_OK on success, #FLUID_FAILED otherwise
  * @since 1.1.0
- */
-/* SYSEX format (0xF0 and 0xF7 not passed to this function):
- * Non-realtime:    0xF0 0x7E <DeviceId> [BODY] 0xF7
- * Realtime:        0xF0 0x7F <DeviceId> [BODY] 0xF7
- * Tuning messages: 0xF0 0x7E/0x7F <DeviceId> 0x08 <sub ID2> [BODY] <ChkSum> 0xF7
- * GS DT1 messages: 0xF0 0x41 <DeviceId> 0x42 0x12 [ADDRESS (3 bytes)] [DATA] <ChkSum> 0xF7
+ * @note When Fluidsynth receives an XG System Mode ON message, it compares the @p synth 's deviceID
+ * directly with the deviceID of the SysEx message. This is contrary to the XG spec (page 42), which
+ * requires to only compare the lower nibble. However, following the XG spec seems to break drum channels
+ * for a lot of MIDI files out there and therefore we've decided for this customization. If you rely on
+ * XG System Mode ON messages, make sure to set the setting \ref settings_synth_device-id to match the
+ * deviceID provided in the SysEx message (in most cases, this will be <code>deviceID=16</code>).
+ *
+ * @code
+ * SYSEX format (0xF0 and 0xF7 bytes shall not be passed to this function):
+ * Non-realtime:    0xF0   0x7E      <DeviceId> [BODY] 0xF7
+ * Realtime:        0xF0   0x7F      <DeviceId> [BODY] 0xF7
+ * Tuning messages: 0xF0   0x7E/0x7F <DeviceId> 0x08 <sub ID2> [BODY] <ChkSum> 0xF7
+ * GS DT1 messages: 0xF0   0x41      <DeviceId> 0x42 0x12 [ADDRESS (3 bytes)] [DATA] <ChkSum> 0xF7
+ * @endcode
  */
 int
 fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
@@ -2013,7 +2025,7 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
 
     /* MIDI tuning SYSEX message? */
     if((data[0] == MIDI_SYSEX_UNIV_NON_REALTIME || data[0] == MIDI_SYSEX_UNIV_REALTIME)
-            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL)
+            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL || synth->device_id == MIDI_SYSEX_DEVICE_ID_ALL)
             && data[2] == MIDI_SYSEX_MIDI_TUNING_ID)
     {
         int result;
@@ -2027,7 +2039,7 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
 
     /* GM or GM2 system on */
     if(data[0] == MIDI_SYSEX_UNIV_NON_REALTIME
-            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL)
+            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL || synth->device_id == MIDI_SYSEX_DEVICE_ID_ALL)
             && data[2] == MIDI_SYSEX_GM_ID)
     {
         if(handled)
@@ -2048,7 +2060,7 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
 
     /* GS DT1 message */
     if(data[0] == MIDI_SYSEX_MANUF_ROLAND
-            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL)
+            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL || synth->device_id == MIDI_SYSEX_DEVICE_ID_ALL)
             && data[2] == MIDI_SYSEX_GS_ID
             && data[3] == MIDI_SYSEX_GS_DT1)
     {
@@ -2062,7 +2074,7 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
 
     /* XG message */
     if(data[0] == MIDI_SYSEX_MANUF_YAMAHA
-            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL)
+            && (data[1] == synth->device_id || data[1] == MIDI_SYSEX_DEVICE_ID_ALL || synth->device_id == MIDI_SYSEX_DEVICE_ID_ALL)
             && data[2] == MIDI_SYSEX_XG_ID)
     {
         int result;
@@ -2653,6 +2665,11 @@ static int
 fluid_synth_system_reset_LOCAL(fluid_synth_t *synth)
 {
     int i;
+
+    if(synth->verbose)
+    {
+        FLUID_LOG(FLUID_INFO, "=== systemreset ===");
+    }
 
     fluid_synth_all_sounds_off_LOCAL(synth, -1);
 
@@ -5546,7 +5563,7 @@ exit:
 }
 
 /**
- * Add a SoundFont.  The SoundFont will be added to the top of the SoundFont stack.
+ * Add a SoundFont. The SoundFont will be added to the top of the SoundFont stack and ownership is transferred to @p synth.
  * @param synth FluidSynth instance
  * @param sfont SoundFont to add
  * @return New assigned SoundFont ID or #FLUID_FAILED on error
@@ -6379,7 +6396,7 @@ int fluid_synth_set_chorus_level(fluid_synth_t *synth, double level)
  * @param synth FluidSynth instance
  * @param speed Chorus speed in Hz (0.1-5.0)
  * @return #FLUID_OK on success, #FLUID_FAILED otherwise
- * @deprecated Use fluid_synth_set_chorus_group_level() in new code instead.
+ * @deprecated Use fluid_synth_set_chorus_group_speed() in new code instead.
  */
 int fluid_synth_set_chorus_speed(fluid_synth_t *synth, double speed)
 {
