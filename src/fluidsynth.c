@@ -29,9 +29,6 @@
 #define GETOPT_SUPPORT 1
 #endif
 
-#ifdef LIBINSTPATCH_SUPPORT
-#include <libinstpatch/libinstpatch.h>
-#endif
 #include "fluid_lash.h"
 
 #ifdef SYSTEMD_SUPPORT
@@ -1222,7 +1219,7 @@ void
 print_welcome()
 {
     printf("FluidSynth runtime version %s\n"
-           "Copyright (C) 2000-2023 Peter Hanappe and others.\n"
+           "Copyright (C) 2000-2024 Peter Hanappe and others.\n"
            "Distributed under the LGPL license.\n"
            "SoundFont(R) is a registered trademark of Creative Technology Ltd.\n\n",
            fluid_version_str());
