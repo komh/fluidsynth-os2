@@ -94,7 +94,9 @@ unsigned int fluid_curtime();
 #define INCL_DOS
 #include <os2.h>
 
+#ifndef __LIBCN__
 typedef int socklen_t;
+#endif
 
 unsigned int fluid_curtime(void);
 double fluid_utime(void);
