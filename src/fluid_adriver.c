@@ -105,6 +105,13 @@ fluid_audio_driver_t* new_fluid_sndmgr_audio_driver2(fluid_settings_t* settings,
 int delete_fluid_sndmgr_audio_driver(fluid_audio_driver_t* p);
 #endif
 
+#if KAI_SUPPORT
+fluid_audio_driver_t* new_fluid_kai_audio_driver(fluid_settings_t* settings,
+                          fluid_synth_t* synth);
+int delete_fluid_kai_audio_driver(fluid_audio_driver_t* p);
+void fluid_kai_audio_driver_settings(fluid_settings_t* settings);
+#endif
+
 #if DART_SUPPORT
 fluid_audio_driver_t* new_fluid_dart_audio_driver(fluid_settings_t* settings,
                           fluid_synth_t* synth);
@@ -178,6 +185,13 @@ fluid_audriver_definition_t fluid_audio_drivers[] = {
     delete_fluid_sndmgr_audio_driver,
     NULL },
 #endif
+#if KAI_SUPPORT
+  { "kai",
+    new_fluid_kai_audio_driver,
+    NULL,
+    delete_fluid_kai_audio_driver,
+    fluid_kai_audio_driver_settings },
+#endif
 #if DART_SUPPORT
   { "dart",
     new_fluid_dart_audio_driver,
@@ -238,6 +252,8 @@ void fluid_audio_driver_settings(fluid_settings_t* settings)
   fluid_settings_register_str(settings, "audio.driver", "sndman", 0, NULL, NULL);
 #elif PORTAUDIO_SUPPORT
   fluid_settings_register_str(settings, "audio.driver", "portaudio", 0, NULL, NULL);
+#elif KAI_SUPPORT
+  fluid_settings_register_str(settings, "audio.driver", "kai", 0, NULL, NULL);
 #elif DART_SUPPORT
   fluid_settings_register_str(settings, "audio.driver", "dart", 0, NULL, NULL);
 #elif AUFILE_SUPPORT
@@ -270,6 +286,9 @@ void fluid_audio_driver_settings(fluid_settings_t* settings)
 #endif
 #if JACK_SUPPORT
   fluid_settings_add_option(settings, "audio.driver", "jack");
+#endif
+#if KAI_SUPPORT
+  fluid_settings_add_option(settings, "audio.driver", "kai");
 #endif
 #if DART_SUPPORT
   fluid_settings_add_option(settings, "audio.driver", "dart");

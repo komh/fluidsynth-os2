@@ -310,6 +310,25 @@ AC_SUBST(DART_CFLAGS)
 AC_SUBST(DART_LIBS)
 
 dnl
+dnl - Check support for KAI
+dnl
+AC_CHECK_HEADER(kai.h, KAI_FOUND="yes", KAI_FOUND="no")
+AC_ARG_ENABLE(kai, AS_HELP_STRING([--disable-kai],
+    [disable KAI support (default=auto)]),
+  enable_kai=$enableval, enable_kai="yes")
+
+KAI_SUPPORT=0
+if test "$enable_kai" = "yes" -a "$KAI_FOUND" = "yes"; then
+  AC_DEFINE(KAI_SUPPORT, 1, [whether or not we are supporting KAI])
+  KAI_SUPPORT=1
+  KAI_LIBS="-lkai"
+fi
+
+AM_CONDITIONAL(KAI_SUPPORT, test "$KAI_SUPPORT" = "1")
+AC_SUBST(KAI_CFLAGS)
+AC_SUBST(KAI_LIBS)
+
+dnl
 dnl Check for readline support (Josh Green 2003-06-10)
 dnl
 AC_ARG_WITH(readline,
@@ -484,6 +503,12 @@ if test "${DART_SUPPORT}" = "1"; then
   echo "OS/2 DART support:     yes"
 else
   echo "OS/2 DART support:     no"
+fi
+
+if test "${KAI_SUPPORT}" = "1"; then
+  echo "OS/2 KAI support:      yes"
+else
+  echo "OS/2 KAI support:      no"
 fi
 
 dnl if test "${AUFILE_SUPPORT}" = "1"; then
