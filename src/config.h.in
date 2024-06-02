@@ -63,9 +63,6 @@
 /* Define to 1 if you have the <math.h> header file. */
 #undef HAVE_MATH_H
 
-/* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
-
 /* Define to 1 if you have the <MidiShare.h> header file. */
 #undef HAVE_MIDISHARE_H
 
@@ -129,6 +126,9 @@
 /* Define to enable JACK driver */
 #undef JACK_SUPPORT
 
+/* whether or not we are supporting KAI */
+#undef KAI_SUPPORT
+
 /* Include the LADSPA Fx unit */
 #undef LADSPA
 
@@ -171,7 +171,9 @@
 /* Define to enable PulseAudio driver */
 #undef PULSE_SUPPORT
 
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
 
 /* Define to enable SIGFPE assertions */

@@ -2256,18 +2256,18 @@ func_munge_path_list ()
     case x@S|@2 in
     x)
         ;;
-    *:)
-        eval @S|@1=\"`$ECHO @S|@2 | $SED 's/:/ /g'` \@S|@@S|@1\"
+    *$PATH_SEPARATOR)
+        eval @S|@1=\"`$ECHO @S|@2 | $SED 's/'$PATH_SEPARATOR'/ /g'` \@S|@@S|@1\"
         ;;
-    x:*)
-        eval @S|@1=\"\@S|@@S|@1 `$ECHO @S|@2 | $SED 's/:/ /g'`\"
+    x$PATH_SEPARATOR*)
+        eval @S|@1=\"\@S|@@S|@1 `$ECHO @S|@2 | $SED 's/'$PATH_SEPARATOR'/ /g'`\"
         ;;
-    *::*)
-        eval @S|@1=\"\@S|@@S|@1\ `$ECHO @S|@2 | $SED -e 's/.*:://' -e 's/:/ /g'`\"
-        eval @S|@1=\"`$ECHO @S|@2 | $SED -e 's/::.*//' -e 's/:/ /g'`\ \@S|@@S|@1\"
+    *$PATH_SEPARATOR$PATH_SEPARATOR*)
+        eval @S|@1=\"\@S|@@S|@1\ `$ECHO @S|@2 | $SED -e 's/.*'$PATH_SEPARATOR$PATH_SEPARATOR'//' -e 's/'$PATH_SEPARATOR'/ /g'`\"
+        eval @S|@1=\"`$ECHO @S|@2 | $SED -e 's/'$PATH_SEPARATOR$PATH_SEPARATOR'.*//' -e 's/'$PATH_SEPARATOR'/ /g'`\ \@S|@@S|@1\"
         ;;
     *)
-        eval @S|@1=\"`$ECHO @S|@2 | $SED 's/:/ /g'`\"
+        eval @S|@1=\"`$ECHO @S|@2 | $SED 's/'$PATH_SEPARATOR'/ /g'`\"
         ;;
     esac
 }
@@ -2947,9 +2947,14 @@ os2*)
   need_lib_prefix=no
   # OS/2 can only load a DLL with a base name of 8 characters or less.
   soname_spec='`test -n "$os2dllname" && libname="$os2dllname";
-    v=$($ECHO $release$versuffix | tr -d .-);
-    n=$($ECHO $libname | cut -b -$((8 - ${#v})) | tr . _);
-    $ECHO $n$v`$shared_ext'
+    n=$($ECHO $libname | tr -d .-);
+    l=${#n}; test $l -gt 3 && l=3; mr=$((8 - $l));
+    r=$($ECHO $release | tr -d .-);
+    l=${#r}; test $l -gt 2 && l=2; mv=$(($mr - $l));
+    v=$($ECHO $versuffix | tr -d .- | cut -b -$mv);
+    r=$($ECHO $r | cut -b -$(($mr - ${#v})));
+    n=$($ECHO $n | cut -b -$((8 - ${#r} - ${#v})));
+    $ECHO $n$r$v`$shared_ext'
   library_names_spec='${libname}_dll.$libext'
   dynamic_linker='OS/2 ld.exe'
   shlibpath_var=BEGINLIBPATH
