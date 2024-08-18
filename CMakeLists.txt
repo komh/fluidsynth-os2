@@ -47,7 +47,7 @@ set ( PACKAGE "fluidsynth" )
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 2 )
 set ( FLUIDSYNTH_VERSION_MINOR 3 )
-set ( FLUIDSYNTH_VERSION_MICRO 5 )
+set ( FLUIDSYNTH_VERSION_MICRO 6 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -62,7 +62,7 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 3 )
 set ( LIB_VERSION_AGE 2 )
-set ( LIB_VERSION_REVISION 3 )
+set ( LIB_VERSION_REVISION 4 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -296,6 +296,7 @@ if ( WIN32 OR CYGWIN )
     endif()
   endif ()
   message ( STATUS "Targeting Windows Version ${windows-version}" )
+  add_definitions ( -D _UNICODE -D UNICODE )
   add_definitions ( -D _WIN32_WINNT=${windows-version} )
   add_definitions ( -D WINVER=${windows-version} )
   list ( APPEND CMAKE_REQUIRED_DEFINITIONS "-DWINVER=${windows-version}" )
