@@ -46,8 +46,8 @@ set ( PACKAGE "fluidsynth" )
 
 # FluidSynth package version
 set ( FLUIDSYNTH_VERSION_MAJOR 2 )
-set ( FLUIDSYNTH_VERSION_MINOR 3 )
-set ( FLUIDSYNTH_VERSION_MICRO 6 )
+set ( FLUIDSYNTH_VERSION_MINOR 4 )
+set ( FLUIDSYNTH_VERSION_MICRO 0 )
 set ( VERSION "${FLUIDSYNTH_VERSION_MAJOR}.${FLUIDSYNTH_VERSION_MINOR}.${FLUIDSYNTH_VERSION_MICRO}" )
 set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 
@@ -61,8 +61,8 @@ set ( FLUIDSYNTH_VERSION "\"${VERSION}\"" )
 # if any interfaces have been removed/changed (compatibility broken): AGE=0
 # This is not exactly the same algorithm as the libtool one, but the results are the same.
 set ( LIB_VERSION_CURRENT 3 )
-set ( LIB_VERSION_AGE 2 )
-set ( LIB_VERSION_REVISION 4 )
+set ( LIB_VERSION_AGE 3 )
+set ( LIB_VERSION_REVISION 0 )
 set ( LIB_VERSION_INFO
       "${LIB_VERSION_CURRENT}.${LIB_VERSION_AGE}.${LIB_VERSION_REVISION}" )
 
@@ -76,6 +76,7 @@ option ( enable-trap-on-fpe "enable SIGFPE trap on Floating Point Exceptions" of
 option ( enable-ubsan "compile and link against UBSan (for debugging fluidsynth internals)" off )
 
 # Options enabled by default
+option ( enable-alsa "compile ALSA support (if it is available)" on )
 option ( enable-aufile "compile support for sound file output" on )
 option ( BUILD_SHARED_LIBS "Build a shared object or DLL" on )
 option ( enable-dbus "compile DBUS support (if it is available)" on )
@@ -101,11 +102,6 @@ option ( enable-threads "enable multi-threading support (such as parallel voice 
 option ( enable-openmp "enable OpenMP support (parallelization of soundfont decoding, vectorization of voice mixing, etc.)" on )
 
 # Platform specific options
-if ( CMAKE_SYSTEM MATCHES "Linux|FreeBSD|DragonFly" )
-    option ( enable-lash "compile LASH support (if it is available)" off )
-    option ( enable-alsa "compile ALSA support (if it is available)" on )
-endif ( CMAKE_SYSTEM MATCHES "Linux|FreeBSD|DragonFly" )
-
 if ( CMAKE_SYSTEM MATCHES "Linux" )
     option ( enable-systemd "compile systemd support (if it is available)" on )
 endif ( CMAKE_SYSTEM MATCHES "Linux" )
@@ -118,6 +114,7 @@ endif ( CMAKE_SYSTEM MATCHES "Darwin" )
 
 if ( CMAKE_SYSTEM MATCHES "OS2" )
     option ( enable-dart "compile DART support (if it is available)" on )
+    option ( enable-kai "compile KAI support (if it is available)" on )
     set ( enable-ipv6 off )
 endif ( CMAKE_SYSTEM MATCHES "OS2" )
 
@@ -368,6 +365,9 @@ set ( LIBFLUID_LIBS ${MATH_LIBRARY} Threads::Threads )
 unset ( DART_SUPPORT CACHE )
 unset ( DART_LIBS CACHE )
 unset ( DART_INCLUDE_DIRS CACHE )
+unset ( KAI_SUPPORT CACHE )
+unset ( KAI_LIBS CACHE )
+unset ( KAI_INCLUDE_DIRS CACHE )
 if ( CMAKE_SYSTEM MATCHES "OS2" )
   set ( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Zbin-files" )
   set ( CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Zbin-files" )
@@ -376,6 +376,14 @@ if ( CMAKE_SYSTEM MATCHES "OS2" )
     set ( DART_SUPPORT ${HAVE_DART_H} )
     unset ( DART_INCLUDE_DIRS CACHE )
   endif ( enable-dart )
+  if ( enable-kai )
+    check_include_files ( "kai.h" HAVE_KAI_H )
+    if ( HAVE_KAI_H )
+        set ( KAI_SUPPORT ${HAVE_KAI_H} )
+        set ( KAI_LIBS "-lkai" )
+    endif ( HAVE_KAI_H )
+    unset ( KAI_INCLUDE_DIRS CACHE )
+  endif ( enable-kai )
 endif ( CMAKE_SYSTEM MATCHES "OS2" )
 
 # Solaris / SunOS
@@ -508,7 +516,6 @@ endif(ASTYLE)
 set ( ALSA_MINIMUM_VERSION 0.9.1 )
 set ( DBUS_MINIMUM_VERSION 1.11.12 )
 set ( GLIB2_MINUMUM_VERSION 2.6.5 )
-set ( LASH_MINIMUM_VERSION 0.3 )
 set ( LIBINSTPATCH_MINIMUM_VERSION 1.1.0 )
 set ( LIBSNDFILE_MINIMUM_VERSION 1.0.0 )
 set ( PIPEWIRE_MINIMUM_VERSION 0.3 )
@@ -596,17 +603,6 @@ if ( enable-pipewire )
         list( APPEND PC_REQUIRES_PRIV "libpipewire-0.3")
     endif()
 endif ( enable-pipewire )
-
-unset ( LASH_SUPPORT CACHE )
-if ( enable-lash )
-    find_package ( LASH ${LASH_MINIMUM_VERSION} )
-    if ( LASH_FOUND )
-        message ( WARNING "LASH support has been deprecated and will be removed in fluidsynth 2.4.0" )
-        set ( LASH_SUPPORT 1 )
-        add_definitions ( -DHAVE_LASH )
-        list( APPEND PC_REQUIRES_PRIV "lash-1.0")
-    endif ( LASH_FOUND )
-endif ( enable-lash )
 
 unset ( SYSTEMD_SUPPORT CACHE )
 if ( enable-systemd )
