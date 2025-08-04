@@ -181,7 +181,7 @@ Developers:
                     <li>gs: (default) CC0 becomes the bank number, CC32 is ignored.</li>
                     <li>gm: ignores CC0 and CC32 messages.</li>
                     <li>mma: bank is calculated as CC0*128+CC32.</li>
-                    <li>xg: If CC0 is equal to 120, 126, or 127 then channel is set to drum and the bank number is set to 128 (CC32 is ignored). Otherwise the channel is set to melodic and CC32 is the bank number. Note that you need fluidsynth &gt;=2.3.5 for this to work correctly, previous versions behaved incorrectly.</li>
+                    <li>xg: If CC0 is equal to 120, 126, or 127 then channel is set to drum mode and the bank number is set to 128. CC32 is ignored in this case. If CC0 has a different value, the channel is set to melodic and CC32 becomes the bank number. Note that before fluidsynth 2.3.5 the logic for CC0 was broken.</li>
                 </ul>
             </desc>
         </setting>
@@ -201,7 +201,7 @@ Developers:
             <min>0</min>
             <max>2</max>
             <desc>
-                This setting specifies the behavior for releasing voices, if the same note is hit twice on the same channel. Early synthesizers like the Roland SC-55 and Microsoft Wavetable GS MIDI synthesizer (MSGS) are terminating notes abruptly that have already received a noteOff after receiving a noteOn for the same key. This behavior was presumably implemented to save polyphony in these systems. This setting was introduced in fluidsynth 2.4.3 and can be enabled to mimic this behavior, to esp. play back old tunes like Doom E1M1 more accurately. Please note that using a SoundFont which makes proper use of exclusive classes for esp. percussion instruments will yield a similar or better result. Also, this approach is generally preferable becuase it's portable among SF2 compliant synths and can be applied more fine-grained among instruments. This setting supports the following values:
+                This setting specifies the behavior for releasing voices, if the same note is hit twice on the same channel. Early synthesizers like the Roland SC-55 and Microsoft Wavetable GS MIDI synthesizer (MSGS) are terminating notes abruptly that have already received a noteOff after receiving a noteOn for the same key. This behavior was presumably implemented to save polyphony in these systems. This setting was introduced in fluidsynth 2.4.3 and can be enabled to mimic this behavior, to esp. play back old tunes like Doom E1M1 more accurately. Please note that using a SoundFont which makes proper use of exclusive classes for esp. percussion instruments will yield a similar or better result. Also, this approach is generally preferable because it's portable among SF2 compliant synths and can be applied more fine-grained among instruments. This setting supports the following values:
                 <ul>
                     <li>0: A regular noteOff is applied to the previous note, which is the default SF2 compliant behavior.</li>
                     <li>1: Note-cut is only applied on drum MIDI channels (i.e. CHANNEL_TYPE_DRUM). Fluidsynth 2.4.0, 2.4.1, and 2.4.2 unconditionally used this mode.</li>

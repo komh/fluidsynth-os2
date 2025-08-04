@@ -300,6 +300,21 @@ fluid_synth_init(void)
   #endif
 #endif
 
+/*
+ * Disable OpenMP thread affinity on Android to prevent crashes.
+ *
+ * On several Android devices (particularly Xiaomi), OpenMP's attempt to set thread
+ * affinity fails with EINVAL, causing process abortion during parallel SoundFont loading.
+ * This is due to an unresolved bug in Android NDK's OpenMP implementation
+ * (see https://github.com/android/ndk/issues/1180).
+ */
+#ifdef __ANDROID__
+    if (setenv("KMP_AFFINITY", "disabled", 1) != 0)
+    {
+        FLUID_LOG(FLUID_WARN, "Failed to disable KMP_AFFINITY, OpenMP crashes may occur on some devices!");
+    }
+#endif
+
     init_dither();
 
     /* custom_breath2att_mod is not a default modulator specified in SF2.01.
@@ -933,7 +948,7 @@ new_fluid_synth(fluid_settings_t *settings)
     FLUID_MEMSET(synth->voice, 0, synth->nvoice * sizeof(*synth->voice));
     for(i = 0; i < synth->nvoice; i++)
     {
-        synth->voice[i] = new_fluid_voice(synth->eventhandler, synth->sample_rate);
+        synth->voice[i] = new_fluid_voice(synth->eventhandler, synth->sample_rate, synth->iir_sincos_table);
 
         if(synth->voice[i] == NULL)
         {
@@ -1004,6 +1019,7 @@ new_fluid_synth(fluid_settings_t *settings)
         synth->bank_select = FLUID_BANK_STYLE_MMA;
     }
 
+    fluid_iir_filter_init_table(synth->iir_sincos_table, synth->sample_rate);
     fluid_synth_process_event_queue(synth);
 
     /* FIXME */
@@ -1835,6 +1851,11 @@ fluid_synth_cc_LOCAL(fluid_synth_t *synth, int channum, int num)
             if((fluid_channel_get_cc(chan, NRPN_MSB) == 120)
                     && (fluid_channel_get_cc(chan, NRPN_LSB) < 100))
             {
+                if(num == DATA_ENTRY_LSB)
+                {
+                    // SF2 NRPNs must be processed, after having received DATA_LSB and DATA_MSB in that order.
+                    break;
+                }
                 nrpn_select = chan->nrpn_select;
 
                 if(nrpn_select < GEN_LAST)
@@ -1865,7 +1886,7 @@ fluid_synth_cc_LOCAL(fluid_synth_t *synth, int channum, int num)
                     }
                     else
                     {
-                        FLUID_LOG(FLUID_INFO, "Ignoring unknown AWE32 NRPN targetting effect %d", gen);
+                        FLUID_LOG(FLUID_INFO, "Ignoring unknown AWE32 NRPN targeting effect %d", gen);
                     }
                 }
             }
@@ -2088,6 +2109,10 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
             fluid_synth_api_enter(synth);
             synth->bank_select = FLUID_BANK_STYLE_GM;
             result = fluid_synth_system_reset_LOCAL(synth);
+            if(synth->verbose)
+            {
+                FLUID_LOG(FLUID_INFO, "Processing SysEX GM / GM2 System ON message, bank selection mode is now gm.");
+            }
             FLUID_API_RETURN(result);
         }
         return FLUID_OK;
@@ -2104,6 +2129,10 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
         result = fluid_synth_sysex_gs_dt1(synth, data, len, response,
                                           response_len, avail_response,
                                           handled, dryrun);
+        if(synth->verbose)
+        {
+            FLUID_LOG(FLUID_INFO, "Processing SysEX GS DT1 message, bank selection mode might have been changed.");
+        }
         FLUID_API_RETURN(result);
     }
 
@@ -2117,6 +2146,10 @@ fluid_synth_sysex(fluid_synth_t *synth, const char *data, int len,
         result = fluid_synth_sysex_xg(synth, data, len, response,
                                       response_len, avail_response,
                                       handled, dryrun);
+        if(synth->verbose)
+        {
+            FLUID_LOG(FLUID_INFO, "Processing SysEX XG message, bank selection mode is now xg.");
+        }
         FLUID_API_RETURN(result);
     }
 
@@ -2438,7 +2471,8 @@ fluid_synth_sysex_gs_dt1(fluid_synth_t *synth, const char *data, int len,
         checksum += data[i];
     }
     checksum = 0x80 - (checksum & 0x7F);
-    if (checksum != data[len - 1])
+    // An intermediate checksum of 0x80 must be treated as zero! #1578
+    if ((checksum & 0x7F) != data[len - 1])
     {
         FLUID_LOG(FLUID_INFO, "SysEx DT1: dropping message on addr 0x%x due to incorrect checksum 0x%x. Correct checksum: 0x%x", addr, (int)data[len - 1], checksum);
         return FLUID_FAILED;
@@ -3109,14 +3143,7 @@ fluid_synth_program_change(fluid_synth_t *synth, int chan, int prognum)
 
     channel = synth->channel[chan];
 
-    if(channel->channel_type == CHANNEL_TYPE_DRUM)
-    {
-        banknum = DRUM_INST_BANK;
-    }
-    else
-    {
-        fluid_channel_get_sfont_bank_prog(channel, NULL, &banknum, NULL);
-    }
+    fluid_channel_get_sfont_bank_prog(channel, NULL, &banknum, NULL);
 
     if(synth->verbose)
     {
@@ -3142,9 +3169,13 @@ fluid_synth_program_change(fluid_synth_t *synth, int chan, int prognum)
             /* Percussion: Fallback to preset 0 in percussion bank */
             if(channel->channel_type == CHANNEL_TYPE_DRUM)
             {
-                subst_prog = 0;
                 subst_bank = DRUM_INST_BANK;
                 preset = fluid_synth_find_preset(synth, subst_bank, subst_prog);
+                if(!preset)
+                {
+                    subst_prog = 0;
+                    preset = fluid_synth_find_preset(synth, subst_bank, subst_prog);
+                }
             }
             /* Melodic instrument */
             else
@@ -3514,7 +3545,7 @@ fluid_synth_set_sample_rate_LOCAL(fluid_synth_t *synth, float sample_rate)
 
 /**
  * Set up an event to change the sample-rate of the synth during the next rendering call.
- * @warning This function is broken-by-design! Don't use it! Instead, specify the sample-rate when creating the synth.
+ * @warning This function is broken-by-design! Don't use it! Starting with fluidsynth 2.4.4 it's a no-op. Instead, specify the sample-rate when creating the synth.
  * @deprecated As of fluidsynth 2.1.0 this function has been deprecated.
  * Changing the sample-rate is generally not considered to be a real-time use-case, as it always produces some audible artifact ("click", "pop") on the dry sound and effects (because LFOs for chorus and reverb need to be reinitialized).
  * The sample-rate change may also require memory allocation deep down in the effect units.
@@ -3542,14 +3573,7 @@ fluid_synth_set_sample_rate_LOCAL(fluid_synth_t *synth, float sample_rate)
 void
 fluid_synth_set_sample_rate(fluid_synth_t *synth, float sample_rate)
 {
-    fluid_return_if_fail(synth != NULL);
-    fluid_synth_api_enter(synth);
-
-    fluid_synth_set_sample_rate_LOCAL(synth, sample_rate);
-
-    fluid_synth_update_mixer(synth, fluid_rvoice_mixer_set_samplerate,
-                             0, synth->sample_rate);
-    fluid_synth_api_exit(synth);
+    FLUID_LOG(FLUID_ERR, "fluid_synth_set_sample_rate() is no longer supported in this version of fluidsynth!");
 }
 
 // internal sample rate change function for the jack driver
@@ -3686,7 +3710,7 @@ fluid_synth_update_polyphony_LOCAL(fluid_synth_t *synth, int new_polyphony)
 
         for(i = synth->nvoice; i < new_polyphony; i++)
         {
-            synth->voice[i] = new_fluid_voice(synth->eventhandler, synth->sample_rate);
+            synth->voice[i] = new_fluid_voice(synth->eventhandler, synth->sample_rate, synth->iir_sincos_table);
 
             if(synth->voice[i] == NULL)
             {
@@ -3809,9 +3833,9 @@ fluid_synth_program_reset(fluid_synth_t *synth)
  * @param synth FluidSynth instance
  * @param len Count of audio frames to synthesize
  * @param left Array of float buffers to store left channel of planar audio (as many as \c synth.audio-channels buffers, each of \c len in size)
- * @param right Array of float buffers to store right channel of planar audio (size: dito)
+ * @param right Array of float buffers to store right channel of planar audio (size: ditto)
  * @param fx_left Since 1.1.7: If not \c NULL, array of float buffers to store left effect channels (as many as \c synth.effects-channels buffers, each of \c len in size)
- * @param fx_right Since 1.1.7: If not \c NULL, array of float buffers to store right effect channels (size: dito)
+ * @param fx_right Since 1.1.7: If not \c NULL, array of float buffers to store right effect channels (size: ditto)
  * @return #FLUID_OK on success, #FLUID_FAILED otherwise
  *
  * First effect channel used by reverb, second for chorus.
@@ -4278,7 +4302,7 @@ fluid_synth_process_LOCAL(fluid_synth_t *synth, int len, int nfx, float *fx[],
     /* Then, render blocks and copy till we have 'len' samples  */
     while(count < len)
     {
-        /* always render full bloc multiple of FLUID_BUFSIZE */
+        /* always render full block multiple of FLUID_BUFSIZE */
         int blocksleft = (len - count + FLUID_BUFSIZE - 1) / FLUID_BUFSIZE;
         /* render audio (dry and effect) to respective internal dry and effect buffers */
         int blockcount = block_render_func(synth, blocksleft);
@@ -4484,7 +4508,7 @@ fluid_synth_write_float_channels_LOCAL(fluid_synth_t *synth, int len,
         if(cur >= synth->curmax)
         {
             /* render audio (dry and effect) to internal dry buffers */
-            /* always render full blocs multiple of FLUID_BUFSIZE */
+            /* always render full blocks multiple of FLUID_BUFSIZE */
             int blocksleft = (size + FLUID_BUFSIZE - 1) / FLUID_BUFSIZE;
             synth->curmax = FLUID_BUFSIZE * block_render_func(synth, blocksleft);
 
@@ -4762,7 +4786,7 @@ fluid_synth_write_s16_channels(fluid_synth_t *synth, int len,
         if(cur >= synth->curmax)
         {
             /* render audio (dry and effect) to internal dry buffers */
-            /* always render full blocs multiple of FLUID_BUFSIZE */
+            /* always render full blocks multiple of FLUID_BUFSIZE */
             int blocksleft = (size + FLUID_BUFSIZE - 1) / FLUID_BUFSIZE;
             synth->curmax = FLUID_BUFSIZE * fluid_synth_render_blocks(synth, blocksleft);
 
@@ -7613,66 +7637,6 @@ fluid_synth_set_gen_LOCAL(fluid_synth_t *synth, int chan, int param, float value
     }
 }
 
-// The "SB AWE32 Developer's Information Pack" provides a lookup table for the filter resonance.
-// Instead of a single Q value, a high and low Q value is given. This suggests a variable-Q filter design, which is
-// incompatible to fluidsynth's IIR filter. Therefore we need to somehow derive a single Q value.
-// Options are:
-// * mean
-// * geometric distance (sqrt(q_lo * q_hi))
-// * either q_lo or q_hi
-// * linear interpolation between low and high fc
-// * log interpolation between low and high fc
-static fluid_real_t
-calc_awe32_filter_q(int data, fluid_real_t* fc)
-{
-    typedef struct
-    {
-        fluid_real_t fc_lo;
-        fluid_real_t fc_hi;
-        fluid_real_t q_lo;
-        fluid_real_t q_hi;
-        fluid_real_t dc_atten;
-    } awe32_q;
-
-    // Q in dB
-    static const awe32_q awe32_q_table[] =
-    {
-        {92, 22000, 5.f, 0.f, -0.0f },  /* coef 0 */
-        {93, 8500, 6.f, 0.5f, -0.5f },  /* coef 1 */
-        {94, 8300, 8.f, 1.f, -1.2f },   /* coef 2 */
-        {95, 8200, 10.f, 2.f, -1.8f },  /* coef 3 */
-        {96, 8100, 11.f, 3.f, -2.5f },  /* coef 4 */
-        {97, 8000, 13.f, 4.f, -3.3f },  /* coef 5 */
-        {98, 7900, 14.f, 5.f, -4.1f },  /* coef 6 */
-        {99, 7800, 16.f, 6.f, -5.5f},   /* coef 7 */
-        {100, 7700, 17.f, 7.f, -6.0f },  /* coef 8 */
-        {100, 7500, 19.f, 9.f, -6.6f },  /* coef 9 */
-        {100, 7400, 20.f, 10.f, -7.2f }, /* coef 10 */
-        {100, 7300, 22.f, 11.f, -7.9f }, /* coef 11 */
-        {100, 7200, 23.f, 13.f, -8.5f }, /* coef 12 */
-        {100, 7100, 25.f, 15.f, -9.3f }, /* coef 13 */
-        {100, 7100, 26.f, 16.f, -10.1f },/* coef 14 */
-        {100, 7000, 28.f, 18.f, -11.0f}, /* coef 15 */
-    };
-
-    const awe32_q* tab;
-    fluid_real_t alpha;
-
-    fluid_clip(data, 0, 127);
-    data /= 8;
-    tab = &awe32_q_table[data];
-    
-    fluid_clip(*fc, tab->fc_lo, tab->fc_hi);
-    
-    alpha = (*fc - tab->fc_lo) / (tab->fc_hi - tab->fc_lo);
-
-    // linearly interpolate between high and low Q
-    return 10 * /* cB */ (tab->q_lo * (1.0f - alpha) + tab->q_hi * alpha);
-
-    // alternatively: log interpolation
-    // return 10 * /* cB */ FLUID_POW(tab->q_hi, alpha) * FLUID_POW(tab->q_lo, 1.0f - alpha);
-}
-
 /**
  * This implementation is based on "Frequently Asked Questions for SB AWE32" http://archive.gamedev.net/archive/reference/articles/article445.html
  * as well as on the "SB AWE32 Developer's Information Pack" https://github.com/user-attachments/files/15757220/adip301.pdf
@@ -7717,7 +7681,7 @@ static void fluid_synth_process_awe32_nrpn_LOCAL(fluid_synth_t *synth, int chan,
 
     enum fluid_gen_type sf2_gen = awe32_to_sf2_gen[gen];
     int is_realtime = FALSE, i;
-    fluid_real_t converted_sf2_generator_value, q;
+    fluid_real_t converted_sf2_generator_value;
 
     // The AWE32 NRPN docs say that a value of 8192 is considered to be the middle, i.e. zero.
     // However, it looks like for those generators which work in range [0,127], the AWE32 only inspects the DATA_LSB, i.e. and not doing this subtraction. Found while investigating Uplift.mid.
@@ -7794,15 +7758,18 @@ static void fluid_synth_process_awe32_nrpn_LOCAL(fluid_synth_t *synth, int chan,
             // Yes, DO NOT use data here, Uplift.mid doesn't set DATA_MSB=64, therefore we would always get a negative value after subtracting 8192.
             // Since Uplift.mid sounds fine on hardware though, it seems like AWE32 only inspects DATA_LSB in this case.
             // conversion continues below!
-            converted_sf2_generator_value = (data_lsb * 62 /* Hz */);
-            FLUID_LOG(FLUID_DBG, "AWE32 IIR Fc: %f Hz",converted_sf2_generator_value);
+            converted_sf2_generator_value = (data_lsb * 59 /* cents! not as stated Hz by the AWE32 docs!!! */);
+            converted_sf2_generator_value += 4500 /* cents */; // minimum should be around 110 Hz, derived by experiments, see #1473
+            FLUID_LOG(FLUID_DBG, "AWE32 IIR Fc: %f cents", converted_sf2_generator_value);
             is_realtime = TRUE;
             break;
 
         case GEN_FILTERQ:
-            FLUID_LOG(FLUID_DBG, "AWE32 IIR Q Tab: %d",data_lsb);
-            synth->channel[chan]->awe32_filter_coeff = data_lsb;
-            return;
+            fluid_clip(data_lsb, 0, 127);
+            converted_sf2_generator_value = data_lsb * (fluid_real_t)((22.0 /* dB */ / 127.0 /* NPRN steps*/) * 10.0) /* cB */;
+            FLUID_LOG(FLUID_DBG, "AWE32 IIR Q: %f cB", converted_sf2_generator_value);
+            is_realtime = TRUE;
+            break;
 
         // Note: The description in the official "SB AWE32 Developer's Information Pack" is probably wrong.
         // There it says: "Positive data value causes a positive phase (from 0 to maximum) filter modulation
@@ -7846,21 +7813,6 @@ static void fluid_synth_process_awe32_nrpn_LOCAL(fluid_synth_t *synth, int chan,
             return;
     }
     
-    if(sf2_gen == GEN_FILTERFC)
-    {
-        int coef = synth->channel[chan]->awe32_filter_coeff;
-        // The cutoff at fc seems to be very steep for SoundBlaster! hardware. Listening tests have shown that lowering the cutoff frequency by 1000Hz gives a closer signal to the SB! hardware filter...
-        converted_sf2_generator_value -= 1000;
-        q = calc_awe32_filter_q(coef, &converted_sf2_generator_value);
-        FLUID_LOG(FLUID_DBG, "AWE32 IIR Fc (corrected): %f Hz", converted_sf2_generator_value);
-        FLUID_LOG(FLUID_DBG, "AWE32 IIR Q: %f cB", q);
-
-        converted_sf2_generator_value = fluid_hz2ct(converted_sf2_generator_value /* Hz */);
-
-        // Safe the "true initial Q"
-        fluid_channel_set_override_gen_default(synth->channel[chan], GEN_FILTERQ, q);
-    }
-    
     fluid_channel_set_override_gen_default(synth->channel[chan], sf2_gen, converted_sf2_generator_value);
 
     for (i = 0; is_realtime && i < synth->polyphony; i++)
@@ -7874,12 +7826,6 @@ static void fluid_synth_process_awe32_nrpn_LOCAL(fluid_synth_t *synth, int chan,
             fluid_voice_update_param(voice, sf2_gen);
             
             FLUID_LOG(FLUID_DBG, "AWE32 Realtime: adjusting voice id %d, generator %d, chan %d", fluid_voice_get_id(voice), sf2_gen, chan);
-            if(sf2_gen == GEN_FILTERFC)
-            {
-                // also sets the calculated Q
-                fluid_voice_gen_set(voice, GEN_FILTERQ, q);
-                fluid_voice_update_param(voice, GEN_FILTERQ);
-            }
         }
     }
 }
