@@ -43,7 +43,8 @@ extern int feenableexcept(int excepts);
   do { if (FLUID_LIKELY(synth->channel[chan]->mode & FLUID_CHANNEL_ENABLED)) \
        {} \
        else \
-       { FLUID_API_RETURN(return_value); } \
+       { FLUID_LOG(FLUID_INFO, "Channel %d is disabled, event dropped!", chan); FLUID_API_RETURN(return_value); \
+        } \
   } while (0)
 
 #define FLUID_API_ENTRY_CHAN(fail_value)  \
@@ -1219,16 +1220,6 @@ delete_fluid_synth(fluid_synth_t *synth)
 
     delete_fluid_list(synth->sfont);
 
-    /* delete all the SoundFont loaders */
-
-    for(list = synth->loaders; list; list = fluid_list_next(list))
-    {
-        loader = (fluid_sfloader_t *) fluid_list_get(list);
-        fluid_sfloader_delete(loader);
-    }
-
-    delete_fluid_list(synth->loaders);
-
     /* wait for and delete all the lazy sfont unloading timers */
 
     for(list = synth->fonts_to_be_unloaded; list; list = fluid_list_next(list))
@@ -1241,6 +1232,16 @@ delete_fluid_synth(fluid_synth_t *synth)
     }
 
     delete_fluid_list(synth->fonts_to_be_unloaded);
+
+    /* delete all the SoundFont loaders */
+
+    for(list = synth->loaders; list; list = fluid_list_next(list))
+    {
+        loader = (fluid_sfloader_t *) fluid_list_get(list);
+        fluid_sfloader_delete(loader);
+    }
+
+    delete_fluid_list(synth->loaders);
 
     if(synth->channel != NULL)
     {
@@ -1726,6 +1727,7 @@ fluid_synth_cc(fluid_synth_t *synth, int chan, int num, int val)
         /* The channel chan is not a valid 'global channel' */
         else
         {
+            FLUID_LOG(FLUID_INFO, "Ignoring cc%d=%d - channel %d is disabled and not a valid global channel either!", num, val, chan);
             result = FLUID_FAILED;
         }
     }

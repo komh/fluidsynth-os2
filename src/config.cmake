@@ -9,6 +9,7 @@
 
 /* whether or not we are supporting CoreAudio */
 #cmakedefine COREAUDIO_SUPPORT @COREAUDIO_SUPPORT@
+#cmakedefine COREAUDIO_SUPPORT_HAL @COREAUDIO_SUPPORT_HAL@
 
 /* whether or not we are supporting CoreMIDI */
 #cmakedefine COREMIDI_SUPPORT @COREMIDI_SUPPORT@
@@ -213,6 +214,9 @@
 
 /* Soundfont to load for unit testing */
 #cmakedefine TEST_SOUNDFONT "@TEST_SOUNDFONT@"
+
+/* DLS to load for unit testing */
+#cmakedefine TEST_DLS "@TEST_DLS@"
 
 /* Soundfont to load for UTF-8 unit testing */
 #cmakedefine TEST_SOUNDFONT_UTF8_1 "@TEST_SOUNDFONT_UTF8_1@"
