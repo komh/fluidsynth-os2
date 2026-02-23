@@ -45,43 +45,15 @@ fluid_long_long_t default_ftell(void *handle)
     return FLUID_FTELL((FILE *)handle);
 }
 
-#ifdef _WIN32
-#define FLUID_PRIi64 "I64d"
-#else
-#define FLUID_PRIi64 "lld"
-#endif
-
-int safe_fread(void *buf, fluid_long_long_t count, void *fd)
+int safe_fread(void *buf, fluid_long_long_t count, void *handle)
 {
-    if(FLUID_FREAD(buf, (size_t)count, 1, (FILE *)fd) != 1)
-    {
-        if(feof((FILE *)fd))
-        {
-            FLUID_LOG(FLUID_ERR, "EOF while attempting to read %" FLUID_PRIi64 " bytes", count);
-        }
-        else
-        {
-            FLUID_LOG(FLUID_ERR, "File read failed");
-        }
-
-        return FLUID_FAILED;
-    }
-
-    return FLUID_OK;
+    return fluid_file_read(buf, count, handle);
 }
 
-int safe_fseek(void *fd, fluid_long_long_t ofs, int whence)
+int safe_fseek(void *handle, fluid_long_long_t ofs, int whence)
 {
-    if(FLUID_FSEEK((FILE *)fd, ofs, whence) != 0)
-    {
-        FLUID_LOG(FLUID_ERR, "File seek failed with offset = %" FLUID_PRIi64 " and whence = %d", ofs, whence);
-        return FLUID_FAILED;
-    }
-
-    return FLUID_OK;
+    return fluid_file_seek(handle, ofs, whence);
 }
-
-#undef FLUID_PRIi64
 
 /**
  * Creates a new SoundFont loader.
@@ -325,7 +297,7 @@ fluid_preset_t *fluid_sfont_get_preset(fluid_sfont_t *sfont, int bank, int prenu
  * @param mod_out A reference to a fluid_mod_t array. The provided pointer variable will be populated by fluidsynth to point to an array. The caller is responsible for freeing the array with fluid_free().
  * @return #FLUID_FAILED on error (e.g. out of memory). Otherwise it contains the number of modulators saved into the buffer. The caller must always free the buffer, even if the return value is zero!
  * @since 2.5.0
- * @note This function involves memory allocation and is therefore not real-time safe!
+ * @note This function involves memory allocation and is therefore not realtime safe!
  * @warning This function is not thread-safe. So only call this function when no synthesis thread is concurrently using this @p sfont instance!
  */
 int fluid_sfont_get_default_mod(fluid_sfont_t *sfont, fluid_mod_t **mod_out)
@@ -370,7 +342,7 @@ int fluid_sfont_get_default_mod(fluid_sfont_t *sfont, fluid_mod_t **mod_out)
  * SoundFont will be unset, causing the synth's default modulators to be added to voices again.
  * The behavior is undefined if the array @p mods contains multiple identical modulators
  * (i.e. fluid_mod_test_identity() evaluates to true).
- * Further note that this function involves memory allocation and is therefore not real-time safe!
+ * Further note that this function involves memory allocation and is therefore not realtime safe!
  *
  * @warning This function is not thread-safe. So only call this function when no synthesis thread is concurrently using this @p sfont instance!
  * @since 2.5.0
