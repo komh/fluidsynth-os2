@@ -36,18 +36,9 @@ jobs:
     outputs:
       artifact_name: ${{ steps.artifact_name.outputs.name }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         submodules: recursive
-    - name: Build Dependencies
-      run: |
-        git clone https://github.com/libsdl-org/SDL.git && \
-        pushd SDL && \
-        git checkout preview-3.3.2 && \
-        xcodebuild -project Xcode/SDL/SDL.xcodeproj -target "SDL3.xcframework" -configuration Release SYMROOT="build/" && \
-        mkdir build && \
-        cp -r Xcode/SDL/build/SDL3.xcframework build/ && \
-        popd
     - name: Build
       run: bash contrib/ios_build.sh
       
@@ -61,12 +52,12 @@ jobs:
           echo "name=fluidsynth-${{ github.run_id }}" >> $GITHUB_OUTPUT
         fi
         mkdir publish
-        ls -la . SDL SDL/*
-        cp -r build/FluidSynth.xcframework SDL/Xcode/SDL/build/SDL3.xcframework  publish/
+        ls -la .
+        cp -r build/FluidSynth.xcframework publish/
         ls -la publish
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ steps.artifact_name.outputs.name }}-iOS
         path: publish/
@@ -82,7 +73,7 @@ jobs:
     name: 🚀 Publish Release Artifacts
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         path: ${{ needs.ios-build.outputs.artifact_name }}-iOS
         pattern: ${{ needs.ios-build.outputs.artifact_name }}-iOS
