@@ -1,0 +1,76 @@
+name: FluidSynth OS/2
+
+on:
+  pull_request:
+  push:
+    paths-ignore:
+      - '.azure/**'
+      - '.circleci/**'
+      - '.github/workflows/sonarcloud.yml'
+      - '.github/workflows/solaris.yml'
+      - '.github/workflows/windows.yml'
+      - '.github/workflows/ios.yml'
+      - '.cirrus.yml'
+      - 'README.md'
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: RelWithDebInfo
+  INSTALL_LOCATION: "/@unixroot/usr"
+  DESTDIR: ${{ github.workspace }}/fluidsynth
+
+# Use a bash shell so we can use the same syntax for environment variable
+# access regardless of the host operating system
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally
+    # well on Windows or Mac.  You can convert this to a matrix build if you need
+    # cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        CMAKE_FLAGS: ["-DBUILD_SHARED_LIBS=1", "-DBUILD_SHARED_LIBS=0"]
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - uses: komh/setup-cross-os2emx@v1
+
+    - name: Prepare libkai
+      run: |
+        kai_ver=2.2.1
+        kai_namever=kai-$kai_ver
+        kai_libname=lib$kai_namever
+        kai_zip=$kai_libname.zip
+        wget "https://github.com/komh/kai/releases/download/$kai_namever/$kai_zip"
+        unzip $kai_zip
+        cp -va $kai_libname/usr/* $OS2EMX_TARGET_PREFIX/
+
+    - name: Configure CMake
+      run: |
+        cmake -S . \
+          -B build \
+          -G Ninja \
+          -Werror=dev \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+          -DCMAKE_VERBOSE_MAKEFILE=1 \
+          -DCMAKE_INSTALL_PREFIX=$INSTALL_LOCATION \
+          -Dosal=cpp11 \
+          -Denable-libinstpatch=0 \
+          -DCMAKE_TOOLCHAIN_FILE=$OS2EMX_CMAKE_TOOLCHAIN_FILE \
+          ${{ matrix.CMAKE_FLAGS }}
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Install
+      run: cmake --install build && ls -la $DESTDIR$INSTALL_LOCATION
