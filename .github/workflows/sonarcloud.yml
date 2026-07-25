@@ -3,8 +3,8 @@ on:
   # a pull request. 
   push:
     branches:
-      - master
-      - release/**
+      - 'master'
+      - 'release/**'
     paths-ignore:
       - '.azure/**'
       - '.circleci/**'

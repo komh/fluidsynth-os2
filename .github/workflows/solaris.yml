@@ -3,6 +3,8 @@ name: FluidSynth Solaris
 on:
   pull_request:
   push:
+    branches:
+      - '**'
     paths-ignore:
       - '.azure/**'
       - '.circleci/**'
