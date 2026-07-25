@@ -1,0 +1,30 @@
+# the name of the target operating system
+set(CMAKE_SYSTEM_NAME OS2)
+
+# the tager architecture
+set(CMAKE_SYSTEM_PROCESSOR i686)
+
+# which compilers to use for C and C++
+set(CMAKE_C_COMPILER i686-pc-os2-emx-gcc)
+set(CMAKE_CXX_COMPILER i686-pc-os2-emx-g++)
+
+# the path to be passed to the compiler and the linker in the --sysroot flag
+set(CMAKE_SYSROOT /home/komh/opt/os2emx/i686-pc-os2-emx)
+
+# the installation prefixes to be searched by command find_package(), find_program(), find_library(), find_file(), and find_path() commands
+list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${CMAKE_SYSROOT}")
+
+# where is the target environment located
+set(CMAKE_FIND_ROOT_PATH "${CMAKE_SYSROOT}")
+
+# ignore programs in the target environment
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+
+# search libraries, headers, and packages only in the target environment
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+# append include path for os2tk45
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -idirafter ${CMAKE_SYSROOT}/include/os2tk45")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter ${CMAKE_SYSROOT}/include/os2tk45")
