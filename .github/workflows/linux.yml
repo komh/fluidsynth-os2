@@ -3,6 +3,8 @@ name: FluidSynth Linux
 on:
   pull_request:
   push:
+    branches:
+      - '**'
     paths-ignore:
       - '.azure/**'
       - '.circleci/**'
