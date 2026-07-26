@@ -44,16 +44,9 @@ jobs:
         submodules: recursive
 
     - uses: komh/setup-cross-os2emx@v1
-
-    - name: Prepare libkai
-      run: |
-        kai_ver=2.2.1
-        kai_namever=kai-$kai_ver
-        kai_libname=lib$kai_namever
-        kai_zip=$kai_libname.zip
-        wget "https://github.com/komh/kai/releases/download/$kai_namever/$kai_zip"
-        unzip $kai_zip
-        cp -va $kai_libname/usr/* $OS2EMX_TARGET_PREFIX/
+      with:
+        zip-deps: |
+          https://github.com/komh/kai/releases/download/kai-2.2.1/libkai-2.2.1.zip
 
     - name: Configure CMake
       run: |
