@@ -28,7 +28,7 @@ jobs:
   sonarcloud:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         # Disabling shallow clone is recommended for improving relevancy of reporting
         fetch-depth: 0
@@ -48,7 +48,7 @@ jobs:
         echo $PATH
 
     - name: Install Build Wrapper
-      uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v7
+      uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v8
 
     - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable
@@ -77,7 +77,7 @@ jobs:
        gcovr --version
 
     - name: SonarQube Scan
-      uses: SonarSource/sonarqube-scan-action@v7
+      uses: SonarSource/sonarqube-scan-action@v8
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
