@@ -3,14 +3,17 @@ name: FluidSynth OS/2
 on:
   pull_request:
   push:
+    branches:
+      - '**'
     paths-ignore:
       - '.azure/**'
       - '.circleci/**'
+      - '.github/workflows/api_doc_build.yml'
       - '.github/workflows/sonarcloud.yml'
       - '.github/workflows/solaris.yml'
       - '.github/workflows/windows.yml'
       - '.github/workflows/ios.yml'
-      - '.cirrus.yml'
+      - '.github/workflows/rendering-regression.yml'
       - 'README.md'
 
 env:
@@ -39,11 +42,12 @@ jobs:
         CMAKE_FLAGS: ["-DBUILD_SHARED_LIBS=1", "-DBUILD_SHARED_LIBS=0"]
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
 
-    - uses: komh/setup-cross-os2emx@v1
+    - name: Setup cross-os2emx
+      uses: komh/setup-cross-os2emx@v1
       with:
         zip-deps: |
           https://github.com/komh/kai/releases/download/kai-2.2.1/libkai-2.2.1.zip
@@ -53,12 +57,14 @@ jobs:
         cmake -S . \
           -B build \
           -G Ninja \
-          -Werror=dev \
           -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
           -DCMAKE_VERBOSE_MAKEFILE=1 \
+          -Werror=dev \
           -DCMAKE_INSTALL_PREFIX=$INSTALL_LOCATION \
           -Dosal=cpp11 \
           -Denable-libinstpatch=0 \
+          -Denable-dart=1 \
+          -Denable-kai=1 \
           -DCMAKE_TOOLCHAIN_FILE=$OS2EMX_CMAKE_TOOLCHAIN_FILE \
           ${{ matrix.CMAKE_FLAGS }}
 
@@ -67,3 +73,38 @@ jobs:
 
     - name: Install
       run: cmake --install build && ls -la $DESTDIR$INSTALL_LOCATION
+
+    - name: Consume from pkg-config
+      if: ${{ contains(matrix.CMAKE_FLAGS, 'BUILD_SHARED_LIBS=0') }}
+      run: |
+        set -e
+        cat << EOF > static-link-test.c
+        #include <fluidsynth.h>
+        int main() { fluid_synth_process(0,0,0,0,0,0); return 0; }
+        EOF
+        export PKG_CONFIG_PATH="$DESTDIR$INSTALL_LOCATION/lib/pkgconfig"
+        set -x
+        i686-pc-os2-emx-g++ -fPIE -o static-link-test static-link-test.c $(pkg-config --cflags --static fluidsynth) $(pkg-config --libs --static fluidsynth)
+        #./static-link-test
+        echo $?
+
+    - name: Consume from build
+      run: |
+        set -e
+        cmake -S test/cmake \
+          -B consume-build \
+          -G Ninja \
+          -DFluidSynth_DIR="${{github.workspace}}/build" \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+          -DCMAKE_TOOLCHAIN_FILE=$OS2EMX_CMAKE_TOOLCHAIN_FILE
+        cmake --build consume-build
+
+    - name: Consume from install
+      run: |
+        set -e
+        cmake -S test/cmake -B consume-install \
+          -G Ninja \
+          -DFluidSynth_DIR="$DESTDIR$INSTALL_LOCATION/lib/cmake/fluidsynth" \
+          -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+          -DCMAKE_TOOLCHAIN_FILE=$OS2EMX_CMAKE_TOOLCHAIN_FILE
+        cmake --build consume-install
