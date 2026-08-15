@@ -137,6 +137,9 @@
 /* Include the LADSPA Fx unit */
 #cmakedefine LADSPA @LADSPA_SUPPORT@
 
+/* Include the Signalsmith reverb engine + Limiter */
+#cmakedefine SIGNALSMITH_SUPPORT @SIGNALSMITH_SUPPORT@
+
 /* Define to enable IPV6 support */
 #cmakedefine IPV6_SUPPORT @IPV6_SUPPORT@
 
@@ -145,9 +148,6 @@
 
 /* Defined when fluidsynth is build in an automated environment, where no MSVC++ Runtime Debug Assertion dialogs should pop up */
 #cmakedefine NO_GUI @NO_GUI@
-
-/* libinstpatch for DLS and GIG */
-#cmakedefine LIBINSTPATCH_SUPPORT @LIBINSTPATCH_SUPPORT@
 
 /* libsndfile has ogg vorbis support */
 #cmakedefine LIBSNDFILE_HASVORBIS @LIBSNDFILE_HASVORBIS@
@@ -226,9 +226,6 @@
 
 /* SF3 Soundfont to load for unit testing */
 #cmakedefine TEST_SOUNDFONT_SF3 "@TEST_SOUNDFONT_SF3@"
-
-/* Command lines to use for shell parse unit testing */
-#cmakedefine TEST_COMMAND_LINES "@TEST_COMMAND_LINES@"
 
 /* Define to enable SIGFPE assertions */
 #cmakedefine TRAP_ON_FPE @TRAP_ON_FPE@

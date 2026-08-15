@@ -8,11 +8,13 @@ on:
     paths-ignore:
       - '.azure/**'
       - '.circleci/**'
+      - '.github/workflows/api_doc_build.yml'
       - '.github/workflows/linux.yml'
       - '.github/workflows/ios.yml'
+      - '.github/workflows/os2.yml'
+      - '.github/workflows/rendering-regression.yml'
       - '.github/workflows/sonarcloud.yml'
       - '.github/workflows/windows.yml'
-      - '.cirrus.yml'
       - 'README.md'
 
 env:
@@ -31,7 +33,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
         - name: Checkout
-          uses: actions/checkout@v6
+          uses: actions/checkout@v7
           with:
             submodules: true
 

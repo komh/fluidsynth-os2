@@ -128,22 +128,11 @@ endif ( LIBSNDFILE_HASVORBIS )
 
 
 set ( INPUTS_REPORT "${INPUTS_REPORT}Support for DLS files:   " )
-if ( ENABLE_NATIVE_DLS OR LIBINSTPATCH_SUPPORT )
+if ( ENABLE_NATIVE_DLS )
     set ( INPUTS_REPORT "${INPUTS_REPORT}yes\n" )
 else()
     set ( INPUTS_REPORT "${INPUTS_REPORT}no\n" )
 endif()
-if ( ENABLE_NATIVE_DLS )
-    set ( INPUTS_REPORT "${INPUTS_REPORT}  native:                yes\n" )
-else()
-    set ( INPUTS_REPORT "${INPUTS_REPORT}  native:                no\n" )
-endif()
-if ( LIBINSTPATCH_SUPPORT )
-    set ( INPUTS_REPORT "${INPUTS_REPORT}  libinstpatch:          yes\n" )
-else ( LIBINSTPATCH_SUPPORT )
-    set ( INPUTS_REPORT "${INPUTS_REPORT}  libinstpatch:          no\n" )
-endif ( LIBINSTPATCH_SUPPORT )
-
 
 set ( RENDERING_REPORT "\n" )
 
@@ -161,6 +150,16 @@ endif ( LIBSNDFILE_SUPPORT )
 
 
 set ( MISC_REPORT "\nMiscellaneous support:\n" )
+
+if    ( SIGNALSMITH_SUPPORT )
+    set ( MISC_REPORT "${MISC_REPORT}  Limiter:               yes\n" )
+else  ( SIGNALSMITH_SUPPORT )
+  if    ( SIGNALSMITH_AUDIO_BASICS STREQUAL SIGNALSMITH_AUDIO_BASICS-NOTFOUND )
+        set ( MISC_REPORT "${MISC_REPORT}  Limiter:               no (signalsmith-audio/basics not found)\n" )
+  else  ( SIGNALSMITH_AUDIO_BASICS STREQUAL SIGNALSMITH_AUDIO_BASICS-NOTFOUND )
+        set ( MISC_REPORT "${MISC_REPORT}  Limiter:               no\n" )
+  endif ( SIGNALSMITH_AUDIO_BASICS STREQUAL SIGNALSMITH_AUDIO_BASICS-NOTFOUND )
+endif ( SIGNALSMITH_SUPPORT )
 
 if ( DBUS_SUPPORT )
   set ( MISC_REPORT "${MISC_REPORT}  D-Bus:                 yes\n" )

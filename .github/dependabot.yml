@@ -5,16 +5,11 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
-    groups:
-      github-actions:
-        update-types:
-          - "minor"
-          - "major"
-        patterns:
-          - "*"  # Group all Actions updates into a single larger pull request
     schedule:
       interval: monthly
     ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
       - dependency-name: "SonarSource/sonarcloud-github-c-cpp"
         # Version 3 of that task causes the scanner to throw a Java exception...
         versions:
